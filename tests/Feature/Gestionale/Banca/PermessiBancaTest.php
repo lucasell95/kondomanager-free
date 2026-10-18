@@ -16,6 +16,9 @@ require_once __DIR__.'/BancaTestHelpers.php';
 it('un utente senza accesso al pannello non entra in nessuna pagina della banca', function () {
     $s = scenarioBanca();
     $m = movimentoBanca($s);
+
+    // Il permesso esiste (come in produzione): la pagina d'errore 403 lo interroga.
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'Accesso pannello amministratore', 'guard_name' => 'web']);
     $this->actingAs(User::factory()->create());
 
     $this->get(route('admin.gestionale.banca.importa', $s['condominio']))->assertForbidden();
