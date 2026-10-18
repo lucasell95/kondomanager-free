@@ -30,6 +30,8 @@ class ControlliChiusuraService
      * @var array<string, string>  tabella => colonna dell'abbinamento
      */
     public const TABELLE_BANCA = [
+        // Modulo Banca (import estratti conto): i movimenti «ignorati» non contano come non abbinati.
+        'banca_movimenti'          => 'scrittura_contabile_id',
         'movimenti_bancari'        => 'scrittura_contabile_id',
         'estratto_conto_movimenti' => 'scrittura_contabile_id',
         'righe_estratto_conto'     => 'scrittura_contabile_id',
@@ -254,10 +256,14 @@ class ControlliChiusuraService
                 continue;
             }
 
-            $colonnaData = collect(['data_operazione', 'data_valuta', 'data', 'data_movimento'])
+            $colonnaData = collect(['data_contabile', 'data_operazione', 'data_valuta', 'data', 'data_movimento'])
                 ->first(fn ($c) => Schema::hasColumn($tabella, $c));
 
             $query = DB::table($tabella)->whereNull($colonna);
+
+            if (Schema::hasColumn($tabella, 'stato')) {
+                $query->where('stato', '!=', 'ignorato');
+            }
 
             if (Schema::hasColumn($tabella, 'condominio_id')) {
                 $query->where('condominio_id', $esercizio->condominio_id);
