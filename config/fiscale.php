@@ -16,11 +16,27 @@ return [
         '1001' => ['descrizione' => 'Ritenute su retribuzioni lavoro dipendente', 'sezione' => 'erario'],
         '1019' => ['descrizione' => 'Ritenuta su appalti (persone fisiche/società di persone IRPEF)', 'sezione' => 'erario'],
         '1020' => ['descrizione' => 'Ritenuta su appalti (soggetti IRES)', 'sezione' => 'erario'],
-        '1038' => ['descrizione' => 'Ritenuta lavoro autonomo (soppresso)', 'sezione' => 'erario', 'soppresso_dal' => '2017-01-01'],
-        '1040' => ['descrizione' => "Ritenuta su redditi di lavoro autonomo (art. 25 DPR 600/1973)", 'sezione' => 'erario'],
-        '8947' => ['descrizione' => 'Sanzione ravvedimento — interessi', 'sezione' => 'erario', 'sanzione' => true, 'auto_precompila' => false],
-        '8948' => ['descrizione' => 'Sanzione ravvedimento — imposte sostitutive', 'sezione' => 'erario', 'sanzione' => true, 'auto_precompila' => false],
-        '8949' => ['descrizione' => 'Sanzione ravvedimento — altre imposte dirette', 'sezione' => 'erario', 'sanzione' => true, 'auto_precompila' => false],
+        // Il 1038 era il codice delle PROVVIGIONI, non del lavoro autonomo: soppresso dal
+        // 01/01/2017 e sostituito dal 1040 (ris. AdE 13/E del 17/03/2016).
+        '1038' => ['descrizione' => 'Ritenute su provvigioni (commissione, agenzia, mediazione, rappresentanza) — soppresso, sostituito da 1040', 'sezione' => 'erario', 'soppresso_dal' => '2017-01-01'],
+        '1040' => ['descrizione' => "Ritenute su redditi di lavoro autonomo (art. 25 DPR 600/1973) e, dal 2017, su provvigioni (art. 25-bis)", 'sezione' => 'erario'],
+
+        // ── Sanzioni da ravvedimento sulle ritenute ─────────────────────────────
+        // Istituiti dalla ris. AdE 18/E del 28/04/2023, operativi dal 03/07/2023 al posto
+        // dell'8906. Le descrizioni sono le denominazioni ufficiali della risoluzione: prima
+        // qui 8947 era descritto come «interessi», 8948 come «imposte sostitutive» e 8949 come
+        // «altre imposte dirette», tutti e tre sbagliati.
+        //
+        // Gli INTERESSI da ravvedimento non hanno un codice proprio: si sommano al tributo che
+        // si ravvede e si versano con il suo stesso codice (es. 1019 o 1020), come dice la
+        // stessa ris. 18/E/2023.
+        //
+        // [INCERTO] Quale dei tre abbinare alle ritenute 4% del condominio (1019/1020, art.
+        // 25-ter) la risoluzione non lo dice: le fonti non ufficiali indicano 8948. Per questo
+        // nessuno dei tre viene precompilato.
+        '8947' => ['descrizione' => 'Sanzione per ravvedimento su ritenute erariali — redditi di lavoro dipendente, assimilati e assistenza fiscale', 'sezione' => 'erario', 'sanzione' => true, 'auto_precompila' => false],
+        '8948' => ['descrizione' => 'Sanzione per ravvedimento su ritenute erariali — redditi di lavoro autonomo, provvigioni, redditi diversi e locazioni brevi', 'sezione' => 'erario', 'sanzione' => true, 'auto_precompila' => false],
+        '8949' => ['descrizione' => 'Sanzione per ravvedimento su ritenute erariali — redditi di capitale', 'sezione' => 'erario', 'sanzione' => true, 'auto_precompila' => false],
     ],
 
     // Storicizzate: [regime][] => ['dal', 'al'?, 'aliquota', 'base', 'titolo', 'norma'].
