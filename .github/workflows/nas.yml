@@ -2,7 +2,7 @@ name: NAS – controlli, test e immagine
 
 on:
   push:
-    branches: [nas, 'feature/**']
+    branches: [nas, sviluppo, 'feature/**']
   workflow_dispatch:
 
 permissions:
