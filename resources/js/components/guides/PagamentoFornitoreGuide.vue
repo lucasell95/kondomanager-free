@@ -257,8 +257,11 @@ defineEmits(['update:open']);
                             <p>
                                 Da spuntare quando la spesa dà diritto a una detrazione fiscale (art. 16-bis TUIR).
                                 Serve a generare la causale nella forma che la banca deve trasmettere all'Agenzia
-                                delle Entrate, con il tipo di detrazione e i condòmini beneficiari. Senza quella
-                                causale la detrazione si perde, e non è recuperabile dopo.
+                                delle Entrate: il riferimento normativo, il codice fiscale del condominio (per i
+                                lavori sulle parti comuni è il condominio il beneficiario), il tuo codice fiscale se
+                                è nella tua anagrafica, e la partita IVA del fornitore. Senza quella causale la
+                                detrazione si perde, e non è recuperabile dopo. Se il condominio non ha ancora il
+                                codice fiscale, la causale lo segnala con «CF cond. DA INDICARE».
                             </p>
                         </section>
 

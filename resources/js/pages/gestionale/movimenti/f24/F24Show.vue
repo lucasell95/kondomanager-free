@@ -44,6 +44,8 @@ const props = defineProps<{
     motivo_blocco_modifica: string | null;
     /** I campi che il modello ministeriale vuole e che l'anagrafica non sa ancora. */
     campi_mancanti: string[];
+    /** Fornitori per cui il codice 1019/1020 è stato assunto: manca la natura del percipiente. */
+    codici_da_verificare?: { fornitore_id: number | null; fornitore: string; codice_tributo: string; probabile_ires: boolean }[];
 }>();
 
 const { generatePath, generateRoute } = usePermission();
@@ -351,6 +353,42 @@ const storna = () => {
                         L'F24 non si può presentare senza il codice fiscale del contribuente. Inseriscilo
                         nell'anagrafica del condominio, poi torna qui e premi «Aggiorna scadenze»: la delega
                         verrà ricalcolata con il dato corretto.
+                    </p>
+                </div>
+            </div>
+
+            <!--
+                1019 o 1020 dipende dalla natura del percipiente (IRPEF o IRES), non dal tipo di
+                spesa. Se l'anagrafica del fornitore non la dice, il calcolo mette 1019, ma per una
+                società di capitali il codice è 1020: va detto prima di trascrivere la delega.
+            -->
+            <div
+                v-if="(props.codici_da_verificare ?? []).length"
+                class="border border-amber-300 bg-amber-50 rounded-xl p-4 text-sm text-amber-900 flex gap-3"
+            >
+                <AlertOctagon class="w-5 h-5 shrink-0" />
+                <div>
+                    <p class="font-semibold">Codice tributo da verificare</p>
+                    <p class="mt-1">
+                        Per questi fornitori manca la natura del percipiente, quindi il codice è stato
+                        assunto e non scelto: 1019 vale per persone fisiche e società di persone (IRPEF),
+                        1020 per società di capitali ed enti (IRES).
+                    </p>
+                    <ul class="mt-2 space-y-1">
+                        <li v-for="avviso in props.codici_da_verificare" :key="avviso.fornitore_id ?? avviso.fornitore">
+                            <span class="font-medium">{{ avviso.fornitore }}</span>: usato {{ avviso.codice_tributo }}
+                            <span v-if="avviso.probabile_ires">— la ragione sociale indica una società di capitali, il codice corretto è probabilmente 1020</span>.
+                            <a
+                                v-if="avviso.fornitore_id"
+                                :href="route(generateRoute('fornitori.edit'), { fornitore: avviso.fornitore_id })"
+                                target="_blank"
+                                class="ml-1 font-medium underline underline-offset-2"
+                            >Completa l'anagrafica</a>
+                        </li>
+                    </ul>
+                    <p class="mt-2">
+                        Dopo averla completata premi «Aggiorna scadenze»: le bozze vengono ricalcolate con il
+                        codice giusto. Una delega confermata va riportata in bozza o annullata prima.
                     </p>
                 </div>
             </div>

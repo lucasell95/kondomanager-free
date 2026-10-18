@@ -2,6 +2,7 @@
 
 namespace App\Services\Gestionale;
 
+use App\Enums\Fiscale\TipoRitenuta;
 use App\Enums\MetodoPagamento;
 use App\Enums\StatoPagamentoFattura;
 use App\Enums\StatoPagamentoFornitore;
@@ -20,6 +21,7 @@ use App\Exceptions\Pagamenti\IllegalCashAmountException;
 use App\Exceptions\Pagamenti\InsufficientFundsException;
 use App\Exceptions\Pagamenti\NessunEsercizioApertoException;
 use App\Exceptions\Pagamenti\OverpaymentException;
+use App\Exceptions\Pagamenti\PagamentoContantiFornitoreException;
 use App\Exceptions\Pagamenti\PagamentoGiaStornatoException;
 use App\Exceptions\Pagamenti\PagamentoModificaVietataException;
 use App\Exceptions\Pagamenti\PossibilePagamentoDuplicatoException;
@@ -358,7 +360,10 @@ class PagamentoFornitoreService
                     isset($data['tipo_detrazione'])
                         ? TipoDetrazione::from($data['tipo_detrazione'])
                         : null,
-                    $data['beneficiari_detrazione'] ?? []
+                    $data['beneficiari_detrazione'] ?? [],
+                    // Chi dispone il pagamento: l'amministratore che lo registra, se ha
+                    // un'anagrafica con codice fiscale.
+                    Auth::user()?->anagrafica?->codice_fiscale,
                 );
 
                 $pagamento = PagamentoFornitore::create([
@@ -401,6 +406,7 @@ class PagamentoFornitoreService
                         'user_id' => Auth::id(),
                         'allow_overdraft' => (bool) ($data['allow_overdraft'] ?? false),
                         'allow_overpayment' => (bool) ($data['allow_overpayment'] ?? false),
+                        'conferma_contanti_fornitore' => (bool) ($data['conferma_contanti_fornitore'] ?? false),
                         'nota_override' => $data['nota_override'],
                         'importo_cents' => $totali['uscitaCassa'],
                     ]);
@@ -540,6 +546,21 @@ class PagamentoFornitoreService
         $nuovoTipoDetrazione = isset($data['tipo_detrazione'])
             ? TipoDetrazione::from($data['tipo_detrazione'])
             : null;
+
+        // ── Contanti verso il fornitore ───────────────────────────────────────
+        // Solo se la modifica PORTA il pagamento in contanti: chi corregge la data di un
+        // pagamento in contanti già registrato (e già confermato) non va fermato di nuovo.
+        $eraContante = $pagamento->metodo_pagamento === MetodoPagamento::CONTANTI
+            || Cassa::where('conto_contabile_id', $pagamento->conto_corrente_id)->value('tipo') === 'contanti';
+
+        if (! $eraContante) {
+            $this->verificaContantiVersoFornitore(
+                (int) $pagamento->fornitore_id,
+                $nuovoMetodo->value,
+                $nuovoConto,
+                (bool) ($data['conferma_contanti_fornitore'] ?? false),
+            );
+        }
 
         // ── Validazione residuo post-modifica (overpayment) ──────────────────
         // Recupera le fatture collegate e verifica che il nuovo importo non ecceda
@@ -1006,15 +1027,94 @@ class PagamentoFornitoreService
     }
 
     /**
+     * Un pagamento al fornitore in contanti, o da una cassa contanti, chiede conferma esplicita.
+     *
+     * Il condominio nasce con un conto «Cassa Contanti» nel piano dei conti, e una cassa di tipo
+     * contanti si crea con due clic: fino al 18/10/2026 i contanti verso i fornitori erano
+     * bloccati solo da 5.000 € in su (antiriciclaggio). Ma la regola del condominio è più
+     * stretta:
+     *
+     *  - art. 1129 c. 7 c.c.: le somme erogate a qualunque titolo per conto del condominio
+     *    transitano sul conto corrente intestato al condominio;
+     *  - art. 25-ter c. 2-ter DPR 600/1973: i corrispettivi di appalto si pagano tramite conto
+     *    corrente intestato al condominio o modalità tracciabili, con la sanzione dell'art. 11
+     *    c. 1 D.Lgs. 471/1997.
+     *
+     * **Perché una conferma e non un divieto.** È la forma degli altri controlli bypassabili del
+     * pagamento (IBAN diverso, possibile duplicato, saldo insufficiente): una finestra che spiega
+     * e chiede una motivazione, salvata nel record. Un divieto secco impedirebbe di registrare un
+     * pagamento in contanti già avvenuto, e spingerebbe a registrarlo come bonifico — cioè a
+     * falsare il registro di contabilità. Il blocco non bypassabile resta quello dei 5.000 €.
+     *
+     * @throws PagamentoContantiFornitoreException
+     */
+    private function verificaContantiVersoFornitore(
+        int $fornitoreId,
+        string $metodoPagamento,
+        int $contoContabileId,
+        bool $confermato,
+    ): void {
+        if ($confermato) {
+            return;
+        }
+
+        $daCassaContanti = Cassa::where('conto_contabile_id', $contoContabileId)
+            ->value('tipo') === 'contanti';
+
+        if ($metodoPagamento !== MetodoPagamento::CONTANTI->value && ! $daCassaContanti) {
+            return;
+        }
+
+        $fornitore = Fornitore::find($fornitoreId);
+        $nome = $fornitore?->ragione_sociale ?? "#{$fornitoreId}";
+
+        $messaggio = "Pagamento in contanti a {$nome}. L'art. 1129 c. 7 c.c. vuole che le somme pagate "
+            .'per conto del condominio transitino sul conto corrente intestato al condominio: paga con '
+            .'bonifico da quel conto.';
+
+        if ($this->eAppaltatoreConRitenuta($fornitore)) {
+            $messaggio .= " Per questo fornitore, soggetto alla ritenuta del 4% sugli appalti, l'art. 25-ter "
+                .'c. 2-ter DPR 600/1973 impone il pagamento tramite conto corrente intestato al condominio '
+                ."o modalità tracciabili, pena la sanzione dell'art. 11 c. 1 D.Lgs. 471/1997.";
+        }
+
+        $messaggio .= ' Se il pagamento in contanti è già avvenuto e lo stai solo registrando, conferma '
+            .'indicando il motivo.';
+
+        throw new PagamentoContantiFornitoreException($messaggio);
+    }
+
+    /** Il fornitore riceve corrispettivi di appalto con la ritenuta del 4% (art. 25-ter c. 1)? */
+    private function eAppaltatoreConRitenuta(?Fornitore $fornitore): bool
+    {
+        if (! $fornitore || ! $fornitore->soggetto_ritenuta) {
+            return false;
+        }
+
+        if ($fornitore->tipo_ritenuta) {
+            return $fornitore->tipo_ritenuta === TipoRitenuta::APPALTO_4;
+        }
+
+        return (float) ($fornitore->perc_ritenuta ?? 0) === 4.0;
+    }
+
+    /**
      * Genera la causale del bonifico.
      * Standard: "Pagamento {numero} del {data}"
-     * Parlante (art. 16-bis TUIR): include normativa, CF beneficiari, P.IVA fornitore.
+     * Parlante (detrazioni su parti comuni): riferimento normativo, CF del CONDOMINIO, CF di chi
+     * dispone il pagamento se noto, P.IVA (o CF) del fornitore — vedi
+     * `TipoDetrazione::generaCausalePartiComuni()`.
+     *
+     * Nota: con il bonifico parlante la banca trattiene l'**11%** (art. 25 DL 78/2010, aliquota
+     * in vigore dal 01/03/2024) sull'importo **al netto dell'IVA**; il condominio non applica la
+     * propria ritenuta. Il commento qui diceva ancora «8%, sul lordo».
      */
     public function generaCausaleBonifico(
         FatturaPassiva $fattura,
         bool $parlante = false,
         ?TipoDetrazione $tipoDetrazione = null,
-        array $beneficiari = []
+        array $beneficiari = [],
+        ?string $cfOrdinante = null,
     ): string {
         $base = sprintf(
             'Pagamento %s del %s',
@@ -1026,31 +1126,29 @@ class PagamentoFornitoreService
             return $base;
         }
 
-        // Bonifico Parlante: causale fiscalmente valida per detrazioni condòmini.
-        // La banca trattiene automaticamente 8% A.d.E. (ritenuta diversa dalla ritenuta
-        // d'acconto — si applica sull'importo lordo, netto = lordo × 0.92).
-        $cfs = collect($beneficiari)->pluck('codice_fiscale')->filter()->implode(', ');
-        $piva = $fattura->fornitore?->partita_iva ?? '';
-        $normativa = $tipoDetrazione->riferimentoNormativo();
+        $fornitore = $fattura->fornitore;
+        $cfCondominio = $fattura->condominio?->codice_fiscale;
 
-        $causale = sprintf(
-            'Bonifico %s - %s - Benef. CF: %s - P.IVA: %s - %s',
-            $tipoDetrazione->label(),
-            $normativa,
-            $cfs,
-            $piva,
-            $base
+        $causale = $tipoDetrazione->generaCausalePartiComuni(
+            cfCondominio: $cfCondominio,
+            cfOrdinante: $cfOrdinante,
+            idFiscaleFornitore: $fornitore?->partita_iva ?: $fornitore?->codice_fiscale,
+            riferimentoFattura: sprintf(
+                'Ft %s del %s',
+                $fattura->numero_documento ?? "#{$fattura->id}",
+                $fattura->data_documento?->format('d/m/Y') ?? now()->format('d/m/Y')
+            ),
+            cfBeneficiariRipiego: collect($beneficiari)->pluck('codice_fiscale')->filter()->values()->all(),
         );
 
-        // Le causali bancarie hanno un limite ~140 caratteri.
-        // Se supera, tronca e avvisa: l'admin dovrà allegare distinta PDF separata.
-        if (mb_strlen($causale) > 140) {
-            Log::warning("Causale Bonifico Parlante troncata per fattura {$fattura->id}.", [
-                'lunghezza_originale' => mb_strlen($causale),
-                'causale_troncata' => mb_substr($causale, 0, 137).'...',
+        // Nessun troncamento: un dato obbligatorio tagliato fa perdere la detrazione. Se la causale
+        // supera il campo del bonifico SEPA lo si registra, e la si accorcia a mano in banca.
+        if (mb_strlen($causale) > TipoDetrazione::LIMITE_SEPA || blank($cfCondominio)) {
+            Log::warning("Causale del bonifico parlante da verificare per la fattura {$fattura->id}.", [
+                'lunghezza' => mb_strlen($causale),
+                'cf_condominio_mancante' => blank($cfCondominio),
+                'causale' => $causale,
             ]);
-
-            return mb_substr($causale, 0, 137).'...';
         }
 
         return $causale;
@@ -1204,6 +1302,16 @@ class PagamentoFornitoreService
                 );
             }
         }
+
+        // 5-bis. Contanti verso il fornitore (art. 1129 c. 7 c.c., art. 25-ter c. 2-ter DPR
+        //        600/1973): bypassabile con conferma esplicita. Dopo l'antiriciclaggio, che
+        //        resta un blocco a sé e non si aggira.
+        $this->verificaContantiVersoFornitore(
+            (int) $data['fornitore_id'],
+            (string) $data['metodo_pagamento'],
+            (int) $data['conto_corrente_id'],
+            (bool) ($data['conferma_contanti_fornitore'] ?? false),
+        );
 
         // 6. Capienza conto (bloccante senza override esplicito)
         if (! ($data['allow_overdraft'] ?? false)) {

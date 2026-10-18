@@ -4,6 +4,7 @@ namespace App\Actions\PianoRate;
 
 use App\Enums\RuoloAnagraficaImmobile;
 use App\Exceptions\Gestionale\SaldoSolidaleSenzaTitolareException;
+use App\Exceptions\Gestionale\SaldoSolidaleSubentroException;
 use App\Helpers\MoneyHelper;
 use App\Models\Gestionale\PianoRate;
 use App\Models\Gestione;
@@ -141,7 +142,7 @@ class GenerateSaldiAction
      * ma la cosa più utile da mostrare, perché si è ancora in tempo per censire il proprietario
      * mancante invece di scoprirlo a piano emesso.
      *
-     * @return array{risolvibile: bool, ruolo: ?string, ruolo_label: ?string, motivo: ?string, quote: array<int, array{anagrafica_id: int, nome: string, quota: float, importo: int}>}
+     * @return array{risolvibile: bool, subentro: bool, ruolo: ?string, ruolo_label: ?string, motivo: ?string, quote: array<int, array{anagrafica_id: int, nome: string, quota: float, importo: int}>}
      */
     public function anteprimaSolidale(Saldo $saldo, Gestione $gestione): array
     {
@@ -150,6 +151,9 @@ class GenerateSaldiAction
         } catch (SaldoSolidaleSenzaTitolareException $e) {
             return [
                 'risolvibile' => false,
+                // Il subentro (art. 63 c. 4) non è un'anagrafica incompleta: il titolare c'è, ma
+                // la divisione fra venditore e acquirente la deve fare l'amministratore.
+                'subentro' => $e instanceof SaldoSolidaleSubentroException,
                 'ruolo' => null,
                 'ruolo_label' => null,
                 'motivo' => $e->getMessage(),
@@ -168,6 +172,7 @@ class GenerateSaldiAction
 
         return [
             'risolvibile' => true,
+            'subentro' => false,
             'ruolo' => $ruolo,
             'ruolo_label' => RuoloAnagraficaImmobile::from($ruolo)->label(),
             'motivo' => null,
@@ -233,6 +238,8 @@ class GenerateSaldiAction
             ->where('attivo', true)
             ->get();
 
+        $this->bloccaSeSubentro($saldo, $gestione, $occupanti);
+
         foreach (RuoloAnagraficaImmobile::catenaSaldoSolidale($gestione->tipo) as $ruolo) {
             $titolari = $occupanti->where('tipologia', $ruolo->value)->values();
 
@@ -262,6 +269,71 @@ class GenerateSaldiAction
             $saldo->immobile_id,
             $nomeImmobile,
             $saldo->saldo_iniziale
+        );
+    }
+
+    /**
+     * Art. 63 c. 4 disp. att. c.c.: con un passaggio di titolarità il pregresso non si attribuisce
+     * da solo.
+     *
+     * Il subentro si riconosce dalle date del rapporto: fra i titolari di diritto reale
+     * dell'unità (i ruoli della catena) qualcuno ha una `data_fine` — il venditore — e qualcuno
+     * no, o l'ha più tardi — l'acquirente. È così che l'anagrafica dell'unità registra una
+     * compravendita: il vecchio titolare non si cancella, si chiude il suo rapporto.
+     *
+     * Senza questa guardia il ramo automatico prendeva tutti gli attivi: l'acquirente si
+     * ritrovava l'intero pregresso, anche gli anni che la legge lascia al solo venditore, e se il
+     * venditore era ancora censito i due se lo dividevano per quote. Il saldo solidale non dice a
+     * quali anni risale, quindi la divisione giusta la sa solo l'amministratore: per lui c'è il
+     * riparto manuale (ramo B1), che questa guardia non tocca.
+     *
+     * Se tutti i titolari hanno una `data_fine` non c'è un subentrante censito, e il pregresso
+     * resta a loro come prima: è il caso in cui il debito è del venditore.
+     *
+     * @throws SaldoSolidaleSubentroException
+     */
+    private function bloccaSeSubentro(Saldo $saldo, Gestione $gestione, \Illuminate\Support\Collection $occupanti): void
+    {
+        $ruoli = array_map(
+            fn (RuoloAnagraficaImmobile $r) => $r->value,
+            RuoloAnagraficaImmobile::catenaSaldoSolidale($gestione->tipo)
+        );
+
+        $titolari = $occupanti->whereIn('tipologia', $ruoli);
+        $cessati = $titolari->whereNotNull('data_fine');
+
+        if ($cessati->isEmpty()) {
+            return;
+        }
+
+        $ultimaFine = $cessati->max('data_fine');
+        $subentranti = $titolari->filter(
+            fn ($t) => $t->data_fine === null || $t->data_fine > $ultimaFine
+        );
+
+        if ($subentranti->isEmpty()) {
+            return;
+        }
+
+        $nomi = DB::table('anagrafiche')
+            ->whereIn('id', $titolari->pluck('anagrafica_id'))
+            ->pluck('nome', 'id');
+
+        $data = fn (?string $d) => $d ? \Carbon\Carbon::parse($d)->format('d/m/Y') : null;
+
+        $passaggio = $cessati->map(fn ($t) => ($nomi[$t->anagrafica_id] ?? "#{$t->anagrafica_id}").' fino al '.$data($t->data_fine))
+            ->merge($subentranti->map(fn ($t) => ($nomi[$t->anagrafica_id] ?? "#{$t->anagrafica_id}").' dal '.$data($t->data_inizio)))
+            ->implode(', ');
+
+        $nomeImmobile = DB::table('immobili')->where('id', $saldo->immobile_id)->value('nome')
+            ?? "#{$saldo->immobile_id}";
+
+        throw new SaldoSolidaleSubentroException(
+            $saldo->id,
+            $saldo->immobile_id,
+            $nomeImmobile,
+            $saldo->saldo_iniziale,
+            $passaggio
         );
     }
 

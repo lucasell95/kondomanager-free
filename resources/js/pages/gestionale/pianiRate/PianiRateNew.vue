@@ -66,6 +66,8 @@ interface SaldoDettaglio {
    */
   riparto_previsto: {
     risolvibile: boolean;
+    /** Passaggio di titolarità sull'unità (art. 63 c. 4 disp. att. c.c.): serve il riparto manuale. */
+    subentro?: boolean;
     ruolo: string | null;
     ruolo_label: string | null;
     motivo: string | null;
@@ -1336,7 +1338,8 @@ const submit = () => {
 
                       <template v-else>
                         <p class="text-[11px] text-amber-800 font-bold uppercase tracking-wide flex items-center gap-1.5">
-                          <AlertTriangle class="w-3.5 h-3.5" /> Questo pregresso non ha su chi cadere
+                          <AlertTriangle class="w-3.5 h-3.5" />
+                          {{ saldo.riparto_previsto.subentro ? 'Passaggio di titolarità: scegli tu chi paga (art. 63 disp. att.)' : 'Questo pregresso non ha su chi cadere' }}
                         </p>
                         <p class="text-[11px] text-amber-700 leading-snug">{{ saldo.riparto_previsto.motivo }}</p>
                       </template>
@@ -1344,6 +1347,10 @@ const submit = () => {
 
                     <div v-if="saldo.ripartizione_mode === 'manuale'" class="bg-indigo-50/40 border-2 border-dashed border-indigo-200 rounded-xl p-4 space-y-3">
                       <p class="text-[11px] text-indigo-600 font-bold uppercase tracking-wide">Da distribuire: {{ euro(Math.abs(saldo.importo) / 100) }}</p>
+                      <p class="text-[10px] text-indigo-500 leading-snug">
+                        Se l'unità è stata venduta: chi subentra risponde in solido solo dei contributi dell'anno in corso
+                        e di quello precedente (art. 63 c. 4 disp. att. c.c.); i debiti più vecchi restano del venditore.
+                      </p>
                       <div v-for="(rip, rIndex) in saldo.ripartizioni_custom" :key="rIndex" class="flex items-center gap-3">
                         <v-select :options="anagraficheDisponibili" label="nome" v-model="rip.anagrafica_id" :reduce="(a: any) => a.id" class="flex-1 text-xs bg-white" placeholder="Seleziona soggetto..." />
                         <div class="relative w-32 shrink-0">
@@ -1377,7 +1384,9 @@ const submit = () => {
           <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-3 rounded-lg border flex-1">
             <span class="font-bold text-slate-700 block mb-1">Guida rapida:</span>
             • <b>Nominali:</b> Vengono emessi automaticamente sulla persona indicata.<br>
-            • <b>Solidali:</b> Se lasci su "Auto", il sistema usa le quote millesimali degli attuali proprietari.
+            • <b>Solidali:</b> Se lasci su "Auto", il sistema usa le quote millesimali degli attuali proprietari.<br>
+            • <b>Unità vendute:</b> se l'anagrafica dell'unità registra un passaggio di titolarità, l'automatico si ferma
+            e il pregresso va diviso a mano: l'acquirente risponde solo dell'anno in corso e del precedente (art. 63 c. 4 disp. att. c.c.).
           </div>
           <div class="flex items-end shrink-0">
             <Button type="button" class="h-10 px-8 shadow-md text-xs font-bold uppercase tracking-widest" @click="isModaleSaldiAperta = false">Chiudi Modale</Button>

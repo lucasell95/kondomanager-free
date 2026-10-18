@@ -51,6 +51,12 @@ class GeneraDelegheF24Action
     public function __construct(private PlafondRitenuteService $plafond) {}
 
     /**
+     * Ricostruisce le bozze del condominio.
+     *
+     * `$esercizioId` è solo l'esercizio a cui **appoggiare** le deleghe nuove (la colonna è
+     * obbligatoria, e la conferma del versamento scrive lì la sua scrittura): non filtra più le
+     * ritenute. Vedi `ritenuteDaVersare()` per il perché.
+     *
      * @return \Illuminate\Support\Collection<int,DelegaF24>
      */
     public function esegui(Condominio $condominio, int $esercizioId): \Illuminate\Support\Collection
@@ -58,12 +64,17 @@ class GeneraDelegheF24Action
         return DB::transaction(function () use ($condominio, $esercizioId) {
 
             // Le bozze si rifanno da zero: non sono documenti, sono una proposta.
+            //
+            // ⚠️ **Tutte le bozze del condominio, non solo quelle dell'esercizio corrente.** Una
+            // bozza nata quando l'esercizio corrente era un altro tiene «occupati» i suoi
+            // pagamenti (vedi `$giaVersati` sotto): se restasse in piedi, le sue ritenute non
+            // rientrerebbero nel cumulo e la soglia dei 500 € si conterebbe su due mucchi
+            // separati — che è esattamente il difetto che questa correzione chiude.
             DelegaF24::where('condominio_id', $condominio->id)
-                ->where('esercizio_id', $esercizioId)
                 ->where('stato', StatoDelegaF24::BOZZA->value)
                 ->each(fn (DelegaF24 $d) => $d->righe()->delete() && $d->delete());
 
-            $ritenute = $this->ritenuteDaVersare($condominio, $esercizioId);
+            $ritenute = $this->ritenuteDaVersare($condominio);
 
             if ($ritenute->isEmpty()) {
                 return collect();
@@ -93,9 +104,24 @@ class GeneraDelegheF24Action
      * domanda «c'è qualcosa che non ho ancora messo in nessuna delega?» senza duplicare
      * la definizione di «scoperta», che è la parte delicata.
      *
+     * ## Su TUTTI gli esercizi, non su quello corrente
+     *
+     * Fino al 18/10/2026 qui c'era un filtro sull'esercizio della scrittura del pagamento, e il
+     * chiamante passava l'**ultimo esercizio aperto**. Era sbagliato: l'obbligo di versamento è
+     * del condominio come **sostituto d'imposta**, e segue la **data del pagamento** (soglia dei
+     * 500 € e finestre 16/6, 16/12, 16/1 dell'art. 25-ter c. 2-bis DPR 600/1973), non
+     * l'esercizio condominiale in cui il pagamento è stato registrato. Con un esercizio
+     * 01/06–31/05 per mesi convivono due esercizi aperti — il vecchio in attesa del rendiconto e
+     * il nuovo — e le ritenute registrate sul vecchio sparivano dallo scadenzario: versate tardi
+     * (cumulo spezzato in due, soglia non raggiunta) o mai. Lo stesso valeva per le ritenute non
+     * ancora versate di un esercizio già chiuso.
+     *
+     * Il parametro `$esercizioId` resta nella firma solo per compatibilità con i chiamanti
+     * esistenti ed è **ignorato**.
+     *
      * @return \Illuminate\Support\Collection<int,array<string,mixed>>
      */
-    public function ritenuteDaVersare(Condominio $condominio, int $esercizioId): \Illuminate\Support\Collection
+    public function ritenuteDaVersare(Condominio $condominio, ?int $esercizioId = null): \Illuminate\Support\Collection
     {
         // Solo le deleghe ANCORA IN PIEDI bloccano un pagamento. Dopo uno storno le
         // ritenute tornano da versare, e devono rientrare nel calcolo: escluderle
@@ -113,9 +139,9 @@ class GeneraDelegheF24Action
         return PagamentoFornitore::query()
             ->with('fornitore')
             ->where('condominio_id', $condominio->id)
-            // L'esercizio non sta sul pagamento ma sulla sua scrittura: `pagamenti_fornitori`
-            // porta i dati documentali, la collocazione contabile vive nel giornale.
-            ->whereHas('scrittura', fn ($q) => $q->where('esercizio_id', $esercizioId))
+            // Nessun filtro per esercizio: vedi il docblock. Resta il vincolo che il pagamento
+            // abbia una scrittura, come prima (il filtro per esercizio lo imponeva di sponda).
+            ->whereHas('scrittura')
             ->where('importo_ritenuta', '>', 0)
             ->whereNull('pagamento_padre_id')
             ->where('stato', '!=', StatoPagamentoFornitore::STORNATO->value)
@@ -221,21 +247,104 @@ class GeneraDelegheF24Action
     /** IRPEF o IRES: decide 1019 contro 1020, e non si deduce dal tipo di spesa. */
     private function naturaPercipiente(PagamentoFornitore $pagamento): NaturaPercipiente
     {
+        return $this->naturaDichiarata($pagamento) ?? NaturaPercipiente::PERSONA_FISICA_IRPEF;
+    }
+
+    /**
+     * La natura del percipiente come l'utente l'ha indicata, o `null` se non l'ha indicata.
+     *
+     * In ordine: lo scatto al momento del pagamento, l'anagrafica di oggi, e infine il codice
+     * tributo «legacy» scritto a mano sull'anagrafica (1019/1020), che `RitenutaService` tratta
+     * già come override esplicito. Correggere l'anagrafica e ricalcolare le scadenze aggiorna
+     * quindi le **bozze**; le deleghe confermate o versate non vengono mai rigenerate.
+     *
+     * Quando non c'è niente, il generatore ripiega ancora su 1019 — la delega deve pur avere un
+     * codice — ma `codiciDaVerificare()` lo segnala: per una società di capitali il codice giusto
+     * è 1020, e un 1019 presentato al posto suo è un versamento imputato al tributo sbagliato.
+     */
+    public function naturaDichiarata(PagamentoFornitore $pagamento): ?NaturaPercipiente
+    {
         $snapshot = $pagamento->fornitore_snapshot ?? [];
 
         if (! empty($snapshot['natura_percipiente'])) {
             return NaturaPercipiente::from($snapshot['natura_percipiente']);
         }
 
-        $valore = $pagamento->fornitore?->natura_percipiente;
+        $fornitore = $pagamento->fornitore;
+        $valore = $fornitore?->natura_percipiente;
 
         if ($valore instanceof NaturaPercipiente) {
             return $valore;
         }
 
-        return $valore
-            ? NaturaPercipiente::from($valore)
-            : NaturaPercipiente::PERSONA_FISICA_IRPEF;
+        if ($valore) {
+            return NaturaPercipiente::from($valore);
+        }
+
+        return match ((string) ($fornitore?->codice_tributo ?? '')) {
+            '1020' => NaturaPercipiente::SOGGETTO_IRES,
+            '1019' => NaturaPercipiente::PERSONA_FISICA_IRPEF,
+            default => null,
+        };
+    }
+
+    /**
+     * Le righe di una delega ancora da versare il cui codice 1019/1020 è stato **assunto** e non
+     * deciso dall'utente, perché sull'anagrafica del fornitore manca la natura del percipiente.
+     *
+     * Non cambia niente: serve a dirlo dove la delega si guarda, prima di presentarla.
+     *
+     * @return array<int,array{fornitore_id: int|null, fornitore: string, codice_tributo: string, probabile_ires: bool}>
+     */
+    public function codiciDaVerificare(DelegaF24 $delega): array
+    {
+        if (! in_array($delega->stato, [StatoDelegaF24::BOZZA, StatoDelegaF24::CONFERMATA], true)) {
+            return [];
+        }
+
+        $delega->loadMissing('righe.pagamenti.fornitore');
+        $avvisi = [];
+
+        foreach ($delega->righe as $riga) {
+            // Solo gli appalti hanno l'alternativa 1019/1020: 1040 e 1001 non dipendono dalla natura.
+            if (! in_array($riga->codice_tributo, ['1019', '1020'], true)) {
+                continue;
+            }
+
+            foreach ($riga->pagamenti as $pagamento) {
+                if ($this->naturaDichiarata($pagamento) !== null) {
+                    continue;
+                }
+
+                $nome = $pagamento->fornitore_snapshot['ragione_sociale']
+                    ?? $pagamento->fornitore?->ragione_sociale
+                    ?? "Fornitore #{$pagamento->fornitore_id}";
+
+                $avvisi[$pagamento->fornitore_id ?? $nome] = [
+                    'fornitore_id' => $pagamento->fornitore_id,
+                    'fornitore' => $nome,
+                    'codice_tributo' => $riga->codice_tributo,
+                    // Solo un indizio per il messaggio, mai usato per scegliere il codice.
+                    'probabile_ires' => self::sembraSocietaDiCapitali($nome),
+                ];
+            }
+        }
+
+        return array_values($avvisi);
+    }
+
+    /** La ragione sociale porta la forma di una società di capitali (S.r.l., S.p.A., ...)? */
+    public static function sembraSocietaDiCapitali(?string $ragioneSociale): bool
+    {
+        $testo = strtolower(preg_replace('/[^a-z]/i', '', (string) $ragioneSociale));
+
+        foreach (['srl', 'srls', 'spa', 'sapa', 'scarl', 'scrl', 'socoop', 'societacooperativa'] as $forma) {
+            if (str_ends_with($testo, $forma)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function creaDelega(Condominio $condominio, int $esercizioId, array $gruppo, array $righe): DelegaF24

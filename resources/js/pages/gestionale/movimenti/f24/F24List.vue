@@ -55,6 +55,8 @@ const props = defineProps<{
     };
     soglie: { appalti_cents: number; professionisti_cents: number };
     da_calcolare: { numero: number; totale_cents: number };
+    /** Deleghe da versare con un codice 1019/1020 assunto per mancanza della natura del percipiente. */
+    codici_da_verificare?: number;
 }>();
 
 const { generatePath, generateRoute } = usePermission();
@@ -208,6 +210,19 @@ const calcola = () => {
                                     <p class="text-2xl font-black text-slate-900">{{ euro(riepilogo.versato_cents) }}</p>
                                 </div>
                             </div>
+                        </div>
+
+                        <div
+                            v-if="(props.codici_da_verificare ?? 0) > 0"
+                            class="mb-4 border border-amber-300 bg-amber-50 rounded-xl p-4 text-sm text-amber-900 flex gap-3"
+                        >
+                            <AlertTriangle class="w-5 h-5 shrink-0 text-amber-600" />
+                            <p>
+                                <span class="font-semibold">Codice tributo da verificare in {{ props.codici_da_verificare }}
+                                {{ props.codici_da_verificare === 1 ? 'delega' : 'deleghe' }}.</span>
+                                Su alcuni fornitori manca la natura del percipiente e il codice 1019 è stato assunto:
+                                per una società di capitali va 1020. Apri la delega per vedere quali.
+                            </p>
                         </div>
 
                         <DataTable

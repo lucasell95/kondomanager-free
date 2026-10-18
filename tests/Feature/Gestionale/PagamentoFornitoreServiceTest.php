@@ -249,16 +249,18 @@ it('pagamento con bonifico parlante genera causale fiscale corretta', function (
     expect($pagamento->tipo_detrazione)->toEqual(TipoDetrazione::RISTRUTTURAZIONE);
     expect($pagamento->beneficiari_detrazione)->toHaveCount(1);
 
-    $base = sprintf(
-        'Pagamento %s del %s',
-        $fattura->numero_documento ?? "FT#{$fattura->id}",
+    // Dal 18/10/2026: norma, CF del condominio (qui assente, quindi ripiego sui CF indicati),
+    // P.IVA del fornitore, e la fattura solo se c'è spazio. Nessun troncamento con «...»:
+    // la vecchia causale tagliava a 137 caratteri, e con più condòmini perdeva la P.IVA.
+    $cfIndicato = $pagamento->beneficiari_detrazione[0]['codice_fiscale'];
+    $obbligatoria = "Detrazione art. 16-bis DPR 917/1986 - CF benef. {$cfIndicato} - P.IVA forn. 12345678901";
+    $completa = sprintf(
+        '%s - Ft %s del %s',
+        $obbligatoria,
+        $fattura->numero_documento ?? "#{$fattura->id}",
         $fattura->data_documento?->format('d/m/Y') ?? now()->format('d/m/Y')
     );
-
-    $expectedCausale = "Bonifico Ristrutturazione edilizia - art. 16-bis DPR 917/1986 - Benef. CF: RSSMRA80A01H501U - P.IVA: 12345678901 - {$base}";
-    if (mb_strlen($expectedCausale) > 140) {
-        $expectedCausale = mb_substr($expectedCausale, 0, 137).'...';
-    }
+    $expectedCausale = mb_strlen($completa) <= 140 ? $completa : $obbligatoria;
 
     expect($pagamento->causale_bonifico)->toEqual($expectedCausale);
 });
@@ -729,9 +731,12 @@ it('antiriciclaggio: contanti 4999€ passano (sotto soglia)', function () {
         $condominio->id
     );
 
-    // Deve passare senza eccezione
+    // Deve passare senza eccezione. Dal 18/10/2026 i contanti verso un fornitore chiedono anche
+    // la conferma esplicita dell'art. 1129 c. 7 c.c. (vedi ContantiVersoFornitoreTest): qui la si
+    // dà, perché ciò che si prova è la soglia antiriciclaggio.
     $pagamento = $service->registraPagamento(datiPagamento($ctx, $fattura, [
         'metodo_pagamento' => MetodoPagamento::CONTANTI->value,
+        'conferma_contanti_fornitore' => true,
         'allocazioni' => [[
             'fattura_id' => $fattura->id,
             'tipo' => TipoAllocazioneFattura::PAGAMENTO->value,

@@ -110,7 +110,10 @@
 
 {{-- NOTE LEGALI --}}
 <div style="margin-top: 24px; font-size: 7.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 8px;">
-    Documento generato ai sensi dell'art. 1135 c.c. e dell'art. 1130-bis c.c. (rendiconto condominiale).<br>
+    {{-- Era «ai sensi dell'art. 1135 c.c. e dell'art. 1130-bis c.c. (rendiconto condominiale)»: ma
+         questa stampa riporta il preventivo, e il rendiconto dell'art. 1130-bis (registro di
+         contabilità, riepilogo finanziario, nota sintetica) è un altro documento. --}}
+    Prospetto del preventivo di spesa (art. 1135 c. 1 n. 2 c.c.): non è il rendiconto condominiale dell'art. 1130-bis c.c.<br>
     Gli importi sono espressi in Euro (€) e si riferiscono al preventivo di spesa approvato dall'assemblea.
 </div>
 

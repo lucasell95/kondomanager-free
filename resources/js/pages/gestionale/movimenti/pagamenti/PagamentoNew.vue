@@ -4,6 +4,7 @@ import { useForm, Head, router } from '@inertiajs/vue3';
 import GestionaleLayout from '@/layouts/GestionaleLayout.vue';
 import PageHeaderGuide from '@/components/PageHeaderGuide.vue';
 import PagamentoFornitoreGuide from '@/components/guides/PagamentoFornitoreGuide.vue';
+import ModalContantiFornitore from '@/components/gestionale/movimenti/pagamenti/ModalContantiFornitore.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -133,6 +134,7 @@ const form = useForm({
     allow_overpayment:              false,
     iban_confermato_manualmente:    false,
     conferma_duplicato_verificato:  false,
+    conferma_contanti_fornitore:    false,
     nota_override:                  null as string | null,
     allocazioni:                    [] as { fattura_id: number; tipo: string; importo_allocato_cents: number }[],
 });
@@ -168,6 +170,10 @@ const overpaymentNote = ref('');
 // ── Modali errori di dominio — non bypassabili ──
 const showFiscalYearClosedModal = ref(false);
 const fiscalYearClosedMsg = ref('');
+
+// Contanti verso il fornitore (art. 1129 c. 7 c.c.): bypassabile con motivazione.
+const showContantiFornitoreModal = ref(false);
+const contantiFornitoreMsg = ref('');
 
 const showIllegalCashModal = ref(false);
 const illegalCashMsg = ref('');
@@ -218,7 +224,7 @@ const rifiutoMotivi = ref<string[]>([]);
  * sceglie sempre quello che si vede.
  */
 const CHIAVI_CON_FINESTRA_PROPRIA = [
-    'iban_discrepanza', 'possibile_duplicato',
+    'iban_discrepanza', 'possibile_duplicato', 'contanti_fornitore',
     'insufficient_funds', 'insufficient_funds_data',
     'overpayment', 'overpayment_data',
     'fiscal_year_closed', 'illegal_cash',
@@ -247,7 +253,7 @@ const metodiPagamento = [
 ];
 
 const tipiDetrazione = [
-    { value: 'ristrutturazione', label: 'Ristrutturazione edilizia (50%)' },
+    { value: 'ristrutturazione', label: 'Ristrutturazione edilizia (50% / 36%)' },
     { value: 'ecobonus',         label: 'Ecobonus / Riqualificazione energetica' },
     { value: 'sismabonus',       label: 'Sismabonus' },
     { value: 'superbonus',       label: 'Superbonus' },
@@ -525,6 +531,12 @@ const handleSubmit = () => {
                 showDuplicateConfirmModal.value = true;
                 return;
             }
+            // ── Bypassabili: Contanti verso il fornitore ──
+            if (errors.contanti_fornitore) {
+                contantiFornitoreMsg.value = errors.contanti_fornitore;
+                showContantiFornitoreModal.value = true;
+                return;
+            }
             // ── Bypassabili: Saldo insufficiente ──
             if (errors.insufficient_funds) {
                 insufficientFundsMsg.value = errors.insufficient_funds;
@@ -603,6 +615,15 @@ const confirmDuplicate = () => {
     handleSubmit();
 };
 
+// Contanti verso il fornitore: la motivazione si aggiunge a quella di un eventuale altro
+// override, invece di sostituirla.
+const confirmContantiFornitore = (nota: string) => {
+    form.conferma_contanti_fornitore = true;
+    form.nota_override = [form.nota_override, `Contanti: ${nota}`].filter(Boolean).join(' | ');
+    showContantiFornitoreModal.value = false;
+    handleSubmit();
+};
+
 // Override saldo insufficiente: l'admin assume responsabilità con nota obbligatoria
 const confirmOverdraft = () => {
     form.allow_overdraft = true;
@@ -630,6 +651,7 @@ watch(() => form.fornitore_id, async (newVal) => {
             form.iban_beneficiario = f.iban_principale || '';
             form.iban_confermato_manualmente = false;
             form.conferma_duplicato_verificato = false;
+            form.conferma_contanti_fornitore = false;
         }
 
         if (props.preselected_fattura_id) {
@@ -1747,6 +1769,13 @@ const pageGuides = [
                 </div>
             </Transition>
         </Teleport>
+
+        <!-- ── CONTANTI VERSO IL FORNITORE — bypassabile con motivazione (art. 1129 c. 7 c.c.) ── -->
+        <ModalContantiFornitore
+            v-model:open="showContantiFornitoreModal"
+            :messaggio="contantiFornitoreMsg"
+            @conferma="confirmContantiFornitore"
+        />
 
         <!-- ── 4. LIMITE CONTANTI ANTIRICICLAGGIO — non bypassabile ── -->
         <Teleport to="body">
