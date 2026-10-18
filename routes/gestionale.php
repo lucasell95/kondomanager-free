@@ -467,4 +467,6 @@ Route::prefix('/gestionale/{condominio}')
         ->name('scritture.show');
 
     require __DIR__.'/gestionale_rendiconto.php';
+
+    require __DIR__.'/gestionale_banca.php';
 });

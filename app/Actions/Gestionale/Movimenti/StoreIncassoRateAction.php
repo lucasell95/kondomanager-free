@@ -98,7 +98,12 @@ class StoreIncassoRateAction
         }
     }
 
-    public function execute(array $validated, Condominio $condominio, Esercizio $esercizio): void
+    /**
+     * @return ScritturaContabile la scrittura dell'incasso (quella con la cassa in DARE). La
+     *         restituisce perché l'abbinamento dei movimenti bancari deve collegarla al movimento;
+     *         la maschera incassi la ignora come prima.
+     */
+    public function execute(array $validated, Condominio $condominio, Esercizio $esercizio): ScritturaContabile
     {
         $pagamentiOrdinari = array_filter(
             $validated['dettaglio_pagamenti'],
@@ -132,7 +137,7 @@ class StoreIncassoRateAction
 
         $this->guardiaDebitoDelPagante($pagamentiOrdinari, (int) $validated['pagante_id']);
 
-        DB::transaction(function () use (
+        return DB::transaction(function () use (
             $validated,
             $condominio,
             $esercizio,
@@ -539,6 +544,8 @@ class StoreIncassoRateAction
             if (isset($scritturaStorno) && $scritturaStorno->righe()->exists()) {
                 DoubleEntryValidator::validateOrFail($scritturaStorno->id);
             }
+
+            return $scritturaIncasso;
         });
     }
 }
