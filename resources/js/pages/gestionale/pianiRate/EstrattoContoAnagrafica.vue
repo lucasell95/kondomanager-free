@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCurrencyFormatter } from '@/composables/useCurrencyFormatter';
 import { useDateConverter } from '@/composables/useDateConverter';
-import { ArrowLeft, Printer, Mail, Wallet, ArrowDownCircle, ArrowUpCircle, Building2, Landmark,FileText, Banknote, HelpCircle, RotateCcw, CheckCircle2, AlertCircle, PieChart, Coins, Info, XCircle, ChevronDown } from 'lucide-vue-next';
+import { ArrowLeft, Printer, Mail, Wallet, ArrowDownCircle, ArrowUpCircle, Building2, Landmark,FileText, Banknote, HelpCircle, RotateCcw, CheckCircle2, AlertCircle, PieChart, Coins, Info, XCircle, ChevronDown, Rows3, Layers } from 'lucide-vue-next';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useUrlPrecedente } from '@/composables/useUrlPrecedente';
+import { trans } from 'laravel-vue-i18n';
 import type { Building } from '@/types/buildings';
 import type { Anagrafica } from '@/types/anagrafiche';
 import type { Esercizio } from '@/types/gestionale/esercizi';
@@ -38,6 +39,8 @@ const props = defineProps<{
     compensabile_frase: string;
     compensabile_rata_id: number | null;
   };
+  /** `aggregata` (predefinita): una riga per movimento. `unita`: una riga per unità immobiliare. */
+  vista?: 'aggregata' | 'unita';
 }>();
 
 const { euro } = useCurrencyFormatter({ fromCents: false }); 
@@ -50,10 +53,26 @@ const goBack = () => {
     else router.visit(generatePath('gestionale/:condominio/piani-rate', { condominio: props.condominio.id }));
 };
 
-const printPDF = () => {
+const vistaCorrente = computed(() => props.vista ?? 'aggregata');
+
+/**
+ * Cambia vista restando sulla pagina. La scelta va nella query string (`?vista=`), così il link è
+ * condivisibile; si ricarica solo la timeline, perché i totali sono gli stessi nelle due viste.
+ */
+const cambiaVista = (vista: 'aggregata' | 'unita') => {
+    if (vista === vistaCorrente.value) return;
+    router.get(
+        route('admin.gestionale.anagrafiche.estratto-conto', { condominio: props.condominio.id, anagrafica: props.anagrafica.id }),
+        { vista },
+        { preserveScroll: true, preserveState: true, replace: true, only: ['timeline', 'vista'] },
+    );
+};
+
+const printPDF = (vista: 'aggregata' | 'unita' = vistaCorrente.value) => {
     const url = route('admin.gestionale.anagrafiche.estratto-conto.print', {
         condominio: props.condominio.id,
         anagrafica: props.anagrafica.id,
+        vista,
     });
     window.open(url, '_blank');
 };
@@ -210,12 +229,21 @@ const getImportoStyle = (riga: any) => {
                             </DropdownMenuLabel>
                             <DropdownMenuSeparator class="bg-slate-100" />
                             <DropdownMenuItem 
-                                @click="printPDF"
+                                @click="printPDF('aggregata')"
                                 class="cursor-pointer flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-indigo-50 focus:bg-indigo-50 text-slate-700">
                                 <FileText class="w-3.5 h-3.5 text-indigo-500" />
                                 <div>
-                                    <div class="text-xs font-medium">Estratto conto</div>
-                                    <div class="text-[10px] text-slate-400">PDF riepilogativo per anagrafica</div>
+                                    <div class="text-xs font-medium">{{ trans('gestionale.estratto_conto.print_menu.aggregata') }}</div>
+                                    <div class="text-[10px] text-slate-400">{{ trans('gestionale.estratto_conto.print_menu.aggregata_help') }}</div>
+                                </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                                @click="printPDF('unita')"
+                                class="cursor-pointer flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-indigo-50 focus:bg-indigo-50 text-slate-700">
+                                <Rows3 class="w-3.5 h-3.5 text-indigo-500" />
+                                <div>
+                                    <div class="text-xs font-medium">{{ trans('gestionale.estratto_conto.print_menu.unita') }}</div>
+                                    <div class="text-[10px] text-slate-400">{{ trans('gestionale.estratto_conto.print_menu.unita_help') }}</div>
                                 </div>
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -350,9 +378,32 @@ const getImportoStyle = (riga: any) => {
 
         <div class="rounded-lg border bg-card text-card-foreground shadow-sm border-gray-200">
             <div class="flex flex-col gap-y-1.5 p-4 pb-3 border-b bg-gray-50/30">
-                <div class="flex items-center justify-between">
+                <div class="flex flex-wrap items-center justify-between gap-2">
                     <h3 class="tracking-tight text-base font-semibold">Movimenti contabili</h3>
-                    <div class="text-xs text-muted-foreground">{{ esercizio.nome }}</div>
+                    <div class="flex items-center gap-3">
+                        <!-- Selettore di vista: stesso aspetto delle TabsList del resto dell'app. -->
+                        <div role="radiogroup" :aria-label="trans('gestionale.estratto_conto.vista.label')" class="inline-flex items-center rounded-md bg-muted p-1 text-xs">
+                            <TooltipProvider :delayDuration="200">
+                                <Tooltip v-for="opzione in (['aggregata', 'unita'] as const)" :key="opzione">
+                                    <TooltipTrigger as-child>
+                                        <button
+                                            type="button"
+                                            role="radio"
+                                            :aria-checked="vistaCorrente === opzione"
+                                            class="inline-flex items-center gap-1.5 rounded-sm px-3 py-1 font-medium transition-all"
+                                            :class="vistaCorrente === opzione ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+                                            @click="cambiaVista(opzione)"
+                                        >
+                                            <component :is="opzione === 'aggregata' ? Layers : Rows3" class="w-3.5 h-3.5" />
+                                            {{ trans(`gestionale.estratto_conto.vista.${opzione}`) }}
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent class="text-xs max-w-[240px]">{{ trans(`gestionale.estratto_conto.vista.${opzione}_help`) }}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                        <div class="text-xs text-muted-foreground">{{ esercizio.nome }}</div>
+                    </div>
                 </div>
             </div>
             <div class="p-0">
@@ -398,6 +449,9 @@ const getImportoStyle = (riga: any) => {
                                 <td class="px-4 py-3 align-top">
                                     <div class="text-sm font-medium text-gray-700">{{ riga.data }}</div>
                                     <div v-if="riga.protocollo" class="mt-1"><Badge variant="outline" class="text-[9px] px-1 h-4 font-mono text-gray-400 border-gray-200">{{ riga.protocollo }}</Badge></div>
+                                    <div v-if="riga.n_righe > 1" class="mt-1 text-[10px] text-gray-400" :title="trans('gestionale.estratto_conto.vista.aggregata_help')">
+                                        {{ trans('gestionale.estratto_conto.vista.rows', { n: String(riga.n_righe) }) }}
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3 align-top">
                                     <div class="flex items-center gap-2 mb-1">
@@ -442,6 +496,9 @@ const getImportoStyle = (riga: any) => {
                                                             }}
                                                             <span v-if="riga.breakdown.immobile !== 'Generico'">(Int. {{ riga.breakdown.immobile }})</span>
                                                         </span>
+                                                    </div>
+                                                    <div v-if="riga.breakdown.unita && riga.breakdown.unita.length > 1" class="text-[10px] text-slate-400 -mt-2 mb-3">
+                                                        {{ trans('gestionale.estratto_conto.vista.units') }}: {{ riga.breakdown.unita.join(', ') }}
                                                     </div>
 
                                                     <div class="space-y-2 text-xs">

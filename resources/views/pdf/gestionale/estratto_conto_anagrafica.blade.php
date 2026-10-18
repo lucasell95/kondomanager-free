@@ -15,6 +15,9 @@
         (dal {{ $esercizio->data_inizio->format('d/m/Y') }} al {{ $esercizio->data_fine->format('d/m/Y') }})
         &nbsp;|&nbsp;
         Stampato il <strong>{{ now()->format('d/m/Y H:i') }}</strong>
+        &nbsp;|&nbsp;
+        {{-- `?vista=aggregata` (predefinita): una riga per movimento; `?vista=unita`: una per unità. --}}
+        Movimenti: <strong>{{ ($vista ?? 'aggregata') === 'unita' ? 'per unità immobiliare' : 'aggregati per movimento' }}</strong>
     </div>
 </div>
 
@@ -131,6 +134,9 @@
                         <span style="font-size: 6pt; background: #f1f5f9; color: #555; border-radius: 2px; padding: 0 3px; margin-left: 3px; font-weight: normal;">{{ $riga['gestione'] }}</span>
                     @endif
                 </div>
+                @if(($riga['n_righe'] ?? 1) > 1)
+                    <div style="font-size: 6pt; color: #999; margin-top: 1px;">{{ $riga['n_righe'] }} righe contabili</div>
+                @endif
                 @if($riga['note'])
                     <div style="font-size: 6.5pt; color: #3182ce; font-style: italic; margin-top: 1px;">{{ $riga['note'] }}</div>
                 @endif

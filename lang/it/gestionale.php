@@ -2042,6 +2042,23 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'vista' => [
+            'label' => 'Vista dei movimenti',
+            'aggregata' => 'Aggregata',
+            'unita' => 'Per unità',
+            'aggregata_help' => 'Una riga per movimento: le unità immobiliari della stessa rata sono sommate, un incasso è una riga sola.',
+            'unita_help' => 'Una riga per ogni unità immobiliare, così come registrata in contabilità.',
+            'units' => 'Unità',
+            'rows' => ':n righe contabili',
+            'print_label_aggregata' => 'vista aggregata per movimento',
+            'print_label_unita' => 'vista per unità immobiliare',
+        ],
+        'print_menu' => [
+            'aggregata' => 'Estratto conto',
+            'aggregata_help' => 'Una riga per movimento (aggregato)',
+            'unita' => 'Estratto conto per unità',
+            'unita_help' => 'Una riga per unità immobiliare',
+        ],
         'head_title_prefix' => 'EC',
         'breadcrumbs' => [
             'management' => 'Gestionale',

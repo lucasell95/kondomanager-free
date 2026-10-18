@@ -9,6 +9,7 @@ use App\Models\Anagrafica;
 use App\Models\Gestionale\RataQuote;
 use App\Helpers\MoneyHelper;
 use App\Services\Gestionale\CreditoService;
+use App\Services\Gestionale\EstrattoContoAggregatoService;
 use App\Traits\HasEsercizio;
 use App\Services\PDF\PdfService;
 use Inertia\Inertia;
@@ -31,14 +32,20 @@ class EstrattoContoAnagraficaController extends Controller
             $q->where('condominio_id', $condominio->id);
         }]);
 
-        [$timeline, $stats] = $this->buildLedger($condominio, $esercizio, $anagrafica);
+        [$timeline, $stats, $saldoInizialeCents] = $this->buildLedger($condominio, $esercizio, $anagrafica);
+
+        // Vista aggregata (predefinita: una riga per movimento) o per unità immobiliare (una riga
+        // per riga contabile, com'era). I totali in `$stats` vengono dalla timeline espansa e non
+        // cambiano fra le due.
+        $vista = EstrattoContoAggregatoService::vistaValida($request->query('vista'));
 
         return Inertia::render('gestionale/pianiRate/EstrattoContoAnagrafica', [
             'condominio' => $condominio,
             'esercizio'  => $esercizio,
             'anagrafica' => $anagrafica,
-            'timeline'   => $timeline,
-            'stats'      => $stats
+            'timeline'   => $this->timelinePerVista($timeline, $saldoInizialeCents, $vista),
+            'stats'      => $stats,
+            'vista'      => $vista,
         ]);
     }
 
@@ -56,13 +63,17 @@ class EstrattoContoAnagraficaController extends Controller
 
         [$timeline, $stats, $saldoInizialeCents] = $this->buildLedger($condominio, $esercizio, $anagrafica);
 
+        // Stessa scelta della pagina: `?vista=aggregata` (predefinita) o `?vista=unita`.
+        $vista = EstrattoContoAggregatoService::vistaValida($request->query('vista'));
+
         $data = [
             'condominio'         => $condominio,
             'esercizio'          => $esercizio,
             'anagrafica'         => $anagrafica,
-            'timeline'           => $timeline,
+            'timeline'           => $this->timelinePerVista($timeline, $saldoInizialeCents, $vista),
             'stats'              => $stats,
             'saldoInizialeCents' => $saldoInizialeCents,
+            'vista'              => $vista,
         ];
 
         $mpdf = $pdfService->generate('pdf.gestionale.estratto_conto_anagrafica', $data, [
@@ -80,6 +91,18 @@ class EstrattoContoAnagraficaController extends Controller
     // -------------------------------------------------------------------------
     // HELPER PRIVATO — Logica condivisa tra show() e print()
     // -------------------------------------------------------------------------
+
+    /**
+     * La timeline nella vista richiesta: espansa così com'è, o aggregata per movimento.
+     */
+    private function timelinePerVista($timeline, int $saldoInizialeCents, string $vista)
+    {
+        if ($vista === EstrattoContoAggregatoService::VISTA_UNITA) {
+            return $timeline;
+        }
+
+        return app(EstrattoContoAggregatoService::class)->aggrega($timeline, $saldoInizialeCents);
+    }
 
     /**
      * Costruisce la timeline (ledger) e le statistiche per una anagrafica.
@@ -202,6 +225,8 @@ class EstrattoContoAnagraficaController extends Controller
             
             $dettagli  = [];
             $breakdown = null;
+            $rataLabel = null;   // «Rata n.1 (Scad. …)», prima dei suffissi: serve alla vista aggregata
+            $statoRata = null;
 
             if ($riga->rata) {
     
@@ -209,6 +234,7 @@ class EstrattoContoAnagraficaController extends Controller
                 if ($riga->rata->data_scadenza) {
                     $labelBase .= " (Scad. " . $riga->rata->data_scadenza->format('d/m/Y') . ")";
                 }
+                $rataLabel = $labelBase;
 
                 // GESTIONE DESCRIZIONI E BREAKDOWN DELLE SINGOLE VOCI
                 if ($riga->tipo_riga === 'dare') {
@@ -334,7 +360,24 @@ class EstrattoContoAnagraficaController extends Controller
                 'dare'        => $dare, 
                 'avere'       => $avere,
                 'saldo'       => $waterfallEnd, 
-                'breakdown'   => $breakdown 
+                'breakdown'   => $breakdown,
+                // --- Dati grezzi per la vista aggregata (EstrattoContoAggregatoService) ---
+                // La vista aggregata ricompone le righe in movimenti e rifà le frasi sui totali:
+                // le servono le chiavi di raggruppamento e i numeri prima della formattazione.
+                // Importi in centesimi.
+                'scrittura_id'     => $riga->scrittura_id,
+                'tipo_riga'        => $riga->tipo_riga,
+                'rata_id'          => $riga->rata?->id,
+                'rata_label'       => $rataLabel,
+                'stato_rata'       => $statoRata,
+                'immobile_id'      => $riga->immobile_id,
+                'immobile_label'   => $riga->immobile
+                    ? $riga->immobile->nome . ($riga->immobile->interno ? " (Int. {$riga->immobile->interno})" : "")
+                    : null,
+                'quota_pura'       => (int) $quotaPura,
+                'saldo_usato'      => (int) $saldoUsato,
+                'totale_richiesto' => (int) $totaleRichiesto,
+                'n_righe'          => 1,
             ];
         });
 
