@@ -90,10 +90,6 @@ class IASettingsController extends Controller
                 ? (int) round(((float) $validati['tetto_spesa_mensile']) * 100)
                 : null;
 
-            if ($request->boolean('conferma_informativa') && $settings->informativa_confermata_il === null) {
-                $settings->informativa_confermata_il = now()->toIso8601String();
-            }
-
             $settings->save();
         } catch (\Throwable $e) {
             // Solo la classe dell'eccezione: il messaggio potrebbe contenere dati della richiesta.

@@ -116,7 +116,6 @@ it('salva la chiave cifrata e la conserva se il campo resta vuoto', function () 
             'ia_abilitata' => true,
             'api_key' => CHIAVE_PAGINA_IA,
             'tetto_spesa_mensile' => '5.50',
-            'conferma_informativa' => true,
         ]))
         ->assertSessionHasNoErrors();
 
@@ -124,8 +123,7 @@ it('salva la chiave cifrata e la conserva se il campo resta vuoto', function () 
     expect($settings->ia_abilitata)->toBeTrue()
         ->and($settings->api_key)->not->toBe(CHIAVE_PAGINA_IA)
         ->and($settings->chiaveInChiaro())->toBe(CHIAVE_PAGINA_IA)
-        ->and($settings->tetto_spesa_mensile_centesimi)->toBe(550)
-        ->and($settings->informativa_confermata_il)->not->toBeNull();
+        ->and($settings->tetto_spesa_mensile_centesimi)->toBe(550);
 
     // Secondo salvataggio senza chiave: resta quella di prima.
     $this->actingAs($this->admin)
@@ -138,10 +136,11 @@ it('salva la chiave cifrata e la conserva se il campo resta vuoto', function () 
         ->and($settings->tetto_spesa_mensile_centesimi)->toBeNull();
 });
 
-it('per attivare l\'IA pretende chiave e conferma dell\'informativa', function () {
+it('per attivare l\'IA pretende la chiave', function () {
     $this->actingAs($this->admin)
         ->post(route('impostazioni.ia.update'), moduloIA(['ia_abilitata' => true]))
-        ->assertSessionHasErrors(['api_key', 'conferma_informativa']);
+        ->assertSessionHasErrors(['api_key'])
+        ->assertSessionDoesntHaveErrors(['conferma_informativa']);
 
     expect(app(IASettings::class)->refresh()->ia_abilitata)->toBeFalse();
 });

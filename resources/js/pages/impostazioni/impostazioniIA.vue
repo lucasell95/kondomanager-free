@@ -90,7 +90,6 @@ const segnapostoChiave = computed(() => {
     return 'sk-ant-…';
 });
 
-const informativaGiaConfermata = computed(() => props.impostazioni.informativa_confermata_il !== null);
 
 const formatoUsd = (valore: number) =>
     new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(valore);
@@ -328,10 +327,10 @@ const provaConnessione = async () => {
                         </div>
 
                         <div>
-                            <p class="font-medium">Prima di attivare</p>
+                            <p class="font-medium">Revisione</p>
                             <p class="text-muted-foreground">
-                                Aggiorna l'informativa privacy consegnata ai condòmini indicando l'uso di un servizio di IA, la pseudonimizzazione, il trasferimento
-                                extra UE e i tempi di conservazione, e fai autorizzare l'uso dall'assemblea. Ogni bozza va riletta e approvata da una persona.
+                                I dati personali vengono sostituiti da codici prima dell'invio; non inserire nomi o dati personali nei campi di testo libero.
+                                Ogni bozza va riletta e approvata da una persona.
                             </p>
                         </div>
 
@@ -344,16 +343,6 @@ const provaConnessione = async () => {
                             <li><a class="underline inline-flex items-center gap-1" target="_blank" rel="noopener" href="https://platform.claude.com/docs/en/manage-claude/data-residency">Luogo dell'elaborazione <ExternalLink class="w-3 h-3" /></a></li>
                         </ul>
 
-                        <div v-if="!informativaGiaConfermata" class="border-t pt-4">
-                            <label class="flex items-start gap-2">
-                                <Checkbox v-model="form.conferma_informativa" class="mt-0.5" />
-                                <span>Ho aggiornato l'informativa ai condòmini e l'assemblea ha autorizzato l'uso dell'assistenza IA per le bozze.</span>
-                            </label>
-                            <InputError :message="form.errors.conferma_informativa" />
-                        </div>
-                        <p v-else class="border-t pt-4 text-xs text-muted-foreground flex items-center gap-1">
-                            <ShieldCheck class="w-3 h-3 text-emerald-600" /> Conferma registrata il {{ formatoData(impostazioni.informativa_confermata_il) }}.
-                        </p>
                     </CardContent>
 
                     <CardFooter class="flex flex-col sm:flex-row items-center justify-between gap-4 border-t px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50">

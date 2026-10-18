@@ -57,9 +57,6 @@ class UpdateIASettingsRequest extends FormRequest
                         : 'La chiave salvata non è più leggibile (APP_KEY cambiata, per esempio dopo un ripristino): reinseriscila.');
                 }
 
-                if ($settings->informativa_confermata_il === null && ! $this->boolean('conferma_informativa')) {
-                    $validator->errors()->add('conferma_informativa', 'Per attivare l\'IA conferma di aver letto l\'informativa e di avere l\'autorizzazione dell\'assemblea.');
-                }
             },
         ];
     }
