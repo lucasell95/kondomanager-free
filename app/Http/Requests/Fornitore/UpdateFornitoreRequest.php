@@ -72,6 +72,15 @@ class UpdateFornitoreRequest extends FormRequest
             'forfetario_riferimento'       => 'nullable|string|max:255',
             'provvigioni_base_ridotta'     => 'boolean',
             'provvigioni_dichiarazione_il' => 'nullable|date|required_if:provvigioni_base_ridotta,true',
+
+            // --- Dati del percipiente persona fisica per la CU (area fiscale, 2026-10) ---
+            'cognome'                      => 'nullable|string|max:100',
+            'nome'                         => 'nullable|string|max:100',
+            'sesso'                        => 'nullable|in:M,F',
+            'data_nascita'                 => 'nullable|date|before:today',
+            'comune_nascita'               => 'nullable|string|max:100',
+            'provincia_nascita'            => 'nullable|string|size:2',
+            'codice_catastale_nascita'     => ['nullable', 'string', 'regex:/^[A-Z][0-9]{3}$/'],
         ];
     }
 
@@ -97,6 +106,12 @@ class UpdateFornitoreRequest extends FormRequest
             'codice_tributo'        => $this->codice_tributo ? Str::upper($this->codice_tributo) : null,
             'partita_iva'           => $this->partita_iva ? Str::upper($this->partita_iva) : null,
             'codice_fiscale'        => $this->codice_fiscale ? Str::upper($this->codice_fiscale) : null,
+
+            // Dati per la CU: date in ISO, sigle e codici in maiuscolo.
+            'data_nascita'             => $this->data_nascita ? Carbon::parse($this->input('data_nascita'))->toDateString() : null,
+            'sesso'                    => $this->sesso ? Str::upper($this->sesso) : null,
+            'provincia_nascita'        => $this->provincia_nascita ? Str::upper($this->provincia_nascita) : null,
+            'codice_catastale_nascita' => $this->codice_catastale_nascita ? Str::upper($this->codice_catastale_nascita) : null,
         ]);
     }
 }

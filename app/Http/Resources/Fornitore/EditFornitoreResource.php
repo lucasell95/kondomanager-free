@@ -62,6 +62,15 @@ class EditFornitoreResource extends JsonResource
             'provvigioni_base_ridotta'      => (bool) $this->provvigioni_base_ridotta,
             'provvigioni_dichiarazione_il'  => $this->provvigioni_dichiarazione_il,
 
+            // --- Dati del percipiente persona fisica per la CU ---
+            'cognome'                       => $this->cognome,
+            'nome'                          => $this->nome,
+            'sesso'                         => $this->sesso,
+            'data_nascita'                  => $this->data_nascita?->toDateString(),
+            'comune_nascita'                => $this->comune_nascita,
+            'provincia_nascita'             => $this->provincia_nascita,
+            'codice_catastale_nascita'      => $this->codice_catastale_nascita,
+
             // Magia 1: Recupera l'IBAN principale (o dalla colonna o dal conto corrente polimorfico associato)
             'iban_principale'          => $this->iban_principale ?? $this->contiCorrenti()->where('tipo', 'ordinario')->value('iban'),
             
