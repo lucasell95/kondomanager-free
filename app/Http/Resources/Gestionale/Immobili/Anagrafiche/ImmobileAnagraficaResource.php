@@ -49,12 +49,12 @@ class ImmobileAnagraficaResource extends JsonResource
                 'note'            => $this->pivot->note,
             ],
 
+            // Solo il saldo iniziale: `saldi.saldo_finale` non esiste più (migrazione del
+            // 01/03/2026) e il «finale» che si esponeva qui valeva sempre € 0,00.
             'saldo' => [
                 'iniziale' => MoneyHelper::format($saldo?->saldo_iniziale ?? 0),
-                'finale'   => MoneyHelper::format($saldo?->saldo_finale ?? 0),
                 'amounts' => [
                     'iniziale' => $saldo?->saldo_iniziale ?? 0,
-                    'finale'   => $saldo?->saldo_finale ?? 0,
                 ],
             ]
 

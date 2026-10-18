@@ -24,12 +24,10 @@ export interface AnagraficaFornitorePivot {
 
 export interface SaldoAmounts {
   iniziale: number;
-  finale: number;
 }
 
 export interface Saldo {
   iniziale: string; 
-  finale: string;   
   amounts: SaldoAmounts; 
 }
 
