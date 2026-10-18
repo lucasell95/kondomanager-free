@@ -4,7 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { Button } from '@/components/ui/button';
 import NavSezione from '@/components/NavSezione.vue';
 import { usePermission } from "@/composables/permissions";
-import { LogIn, LogOut, Wallet, Repeat2, FileText, BookOpen, Percent } from 'lucide-vue-next';
+import { LogIn, LogOut, Wallet, Repeat2, FileText, BookOpen, Percent, Landmark } from 'lucide-vue-next';
 import type { LinkItem } from '@/types';
 import type { Building } from '@/types/buildings';
 import type { Esercizio } from '@/types/gestionale/esercizi';
@@ -38,6 +38,12 @@ const topbarNavItems: (LinkItem & { badge?: string })[] = [
         icon:  Repeat2,
         title: 'Giroconti',
         href:  generatePath('gestionale/:condominio/giroconti', { condominio: condominio.value.id }),
+    },
+    {
+        type:  'link',
+        icon:  Landmark,
+        title: 'Banca',
+        href:  generatePath('gestionale/:condominio/banca/movimenti', { condominio: condominio.value.id }),
     },
     {
         type:  'link',
