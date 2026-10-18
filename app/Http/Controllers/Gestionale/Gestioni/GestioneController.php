@@ -252,14 +252,16 @@ class GestioneController extends Controller
             
             $data = $request->validated();
 
-            // Recupero esercizio aperto
-            $esercizio = $condominio->esercizi()
-                ->where('stato', 'aperto')
-                ->firstOrFail();
-
+            // ⚠️ L'esercizio è quello della rotta, non «quello aperto». Prima qui si cercava
+            // l'esercizio aperto e ci si agganciava la gestione: modificare una gestione di un
+            // esercizio chiuso (o una straordinaria a cavallo d'anno) la faceva comparire anche
+            // nell'esercizio nuovo, con `attiva = true`, senza staccarla dal vecchio, e piani e
+            // prospetti la contavano in entrambi gli anni. Si aggiorna solo il legame con
+            // l'esercizio da cui si sta modificando. Upstream ha in roadmap 1.11 la correzione
+            // completa (`esercizio_id` su `piani_rate`, docs/changelog.md).
             $gestione->update($data);
 
-            // Calcolo intervallo di validità della gestione nell’esercizio corrente
+            // Calcolo intervallo di validità della gestione nell'esercizio della rotta
             $pivotInizio = $gestione->data_inizio->greaterThan($esercizio->data_inizio) 
                 ? $gestione->data_inizio 
                 : $esercizio->data_inizio;
@@ -268,7 +270,7 @@ class GestioneController extends Controller
                 ? $gestione->data_fine 
                 : $esercizio->data_fine;
 
-            // Associa/aggiorna la gestione all’esercizio aperto
+            // Associa/aggiorna la gestione all'esercizio della rotta
             $esercizio->gestioni()->syncWithoutDetaching([
                 $gestione->id => [
                     'attiva'      => true,
