@@ -194,6 +194,11 @@ return [
             'plan_approved' => 'Approvato',
             'plan_draft' => 'Bozza',
             'open_plan' => 'Apri il piano',
+            'back_to_unified' => 'Torna a unificato',
+            'show_plan' => 'Mostra solo questo piano',
+            'single_plan_notice' => 'Stai vedendo un solo piano',
+            'open_plan_page' => 'Apri la pagina del piano',
+            'section_title' => 'Prospetto unificato',
             'cards' => [
                 'total' => 'Totale anno',
                 'collected' => 'Incassato',

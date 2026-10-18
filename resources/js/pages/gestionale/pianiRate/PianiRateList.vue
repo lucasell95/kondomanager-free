@@ -7,9 +7,10 @@ import Alert from "@/components/Alert.vue";
 import { usePermission } from "@/composables/permissions";
 import { createColumns } from '@/components/gestionale/pianiRate/columns';
 import PageHeaderGuide from '@/components/PageHeaderGuide.vue';
+import ProspettoUnificatoPanel from '@/components/gestionale/pianiRate/ProspettoUnificatoPanel.vue';
 import { CalendarDays, Layers, Coins } from 'lucide-vue-next';
 import type { Flash } from '@/types/flash';
-import type { PianoRate } from '@/types/gestionale/piani-rate';
+import type { PianoRate, ProspettoRateUnificato } from '@/types/gestionale/piani-rate';
 import type { Building } from '@/types/buildings';
 import type { PaginationMeta } from '@/types/pagination';
 import type { Esercizio } from "@/types/gestionale/esercizi";
@@ -21,6 +22,8 @@ const props = defineProps<{
   esercizi: Esercizio[];
   pianiRate: PianoRate[];
   meta: PaginationMeta;
+  /** Prospetto unificato dell'esercizio: tutti i piani attivi sommati per condòmino e scadenza. */
+  prospetto?: ProspettoRateUnificato | null;
 }>()
 
 const { generatePath } = usePermission();
@@ -82,6 +85,11 @@ const pageGuides = [
           
           <div v-if="flashMessage">
               <Alert :message="flashMessage.message" :type="flashMessage.type" />
+          </div>
+
+          <!-- Prospetto unificato: tutte le rate dell'esercizio sommate per condòmino e scadenza -->
+          <div v-if="props.prospetto && props.prospetto.piani.length" class="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950 shadow-sm p-4">
+            <ProspettoUnificatoPanel :condominio="props.condominio" :esercizio="props.esercizio" :prospetto="props.prospetto" />
           </div>
 
           <div class="border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950 overflow-hidden shadow-sm p-4">

@@ -4,8 +4,7 @@ import { ref } from 'vue';
 import { watchDebounced } from '@vueuse/core';
 import { usePage, Link } from '@inertiajs/vue3';
 import { Input } from '@/components/ui/input';
-import { Plus, TableProperties } from 'lucide-vue-next';
-import { trans } from 'laravel-vue-i18n';
+import { Plus } from 'lucide-vue-next';
 import { usePermission } from '@/composables/permissions';
 import { useTabellaServer } from '@/composables/useTabellaServer';
 import type { Table } from '@tanstack/vue-table';
@@ -58,27 +57,14 @@ watchDebounced(
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
-      <!-- Prospetto unificato: tutte le rate dell'esercizio sommate per condòmino e scadenza (sola lettura). -->
-      <Link
-        :href="route(generateRoute('gestionale.esercizi.piani-rate.prospetto-unificato'), { condominio: page.props.condominio.id, esercizio: page.props.esercizio.id })"
-        :title="trans('gestionale.piani_rate.prospetto_unificato.link_help')"
-        class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-        prefetch
-      >
-        <TableProperties class="w-3.5 h-3.5" />
-        <span>{{ trans('gestionale.piani_rate.prospetto_unificato.link') }}</span>
-      </Link>
-
-      <Link
-        :href="route(generateRoute('gestionale.esercizi.piani-rate.create'), { condominio: page.props.condominio.id, esercizio: page.props.esercizio.id })"
-        class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 dark:bg-slate-700 border border-slate-800 shadow-sm text-xs font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors"
-        prefetch
-      >
-        <Plus class="w-3.5 h-3.5" />
-        <span>Nuovo piano rate</span>
-      </Link>
-    </div>
+    <Link
+      :href="route(generateRoute('gestionale.esercizi.piani-rate.create'), { condominio: page.props.condominio.id, esercizio: page.props.esercizio.id })"
+      class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 dark:bg-slate-700 border border-slate-800 shadow-sm text-xs font-medium text-white hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors"
+      prefetch
+    >
+      <Plus class="w-3.5 h-3.5" />
+      <span>Nuovo piano rate</span>
+    </Link>
 
   </div>
 </template>

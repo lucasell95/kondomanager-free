@@ -194,6 +194,11 @@ return [
             'plan_approved' => 'Aprobado',
             'plan_draft' => 'Borrador',
             'open_plan' => 'Abrir el plan',
+            'back_to_unified' => 'Volver al unificado',
+            'show_plan' => 'Mostrar solo este plan',
+            'single_plan_notice' => 'Estás viendo un solo plan',
+            'open_plan_page' => 'Abrir la página del plan',
+            'section_title' => 'Resumen unificado',
             'cards' => [
                 'total' => 'Total del año',
                 'collected' => 'Cobrado',
