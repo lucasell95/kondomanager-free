@@ -193,8 +193,18 @@ class IncassoRateController extends Controller
      */
     public function store(StoreIncassoRateRequest $request, Condominio $condominio, StoreIncassoRateAction $action) 
     {
+        // Senza un esercizio aperto (tutti chiusi, per esempio fra la chiusura di un esercizio e
+        // l'apertura del successivo) l'incasso non ha dove andare: prima era un errore 500.
+        $esercizio = $this->getEsercizioCorrente($condominio);
+
+        if (! $esercizio) {
+            return back()->withInput()->withErrors([
+                'data_pagamento' => 'Non c\'è un esercizio aperto in cui registrare l\'incasso. Apri l\'esercizio dalla sezione Esercizi e riprova.',
+            ]);
+        }
+
         try {
-            $action->execute($request->validated(), $condominio, $this->getEsercizioCorrente($condominio));
+            $action->execute($request->validated(), $condominio, $esercizio);
         } catch (IncassoNonRegistrabileException $e) {
             // Conflitto di dominio, non guasto: l'incasso **non si poteva registrare**, e niente è
             // stato scritto. Si torna al modulo compilato con il motivo, invece della pagina 500
@@ -373,12 +383,22 @@ class IncassoRateController extends Controller
             ->where('id', $scrittura->created_by)
             ->value('name');
 
-        // Idem per l'utente che ha effettuato un eventuale storno
+        // Idem per l'utente che ha effettuato un eventuale storno.
+        //
+        // Lo storno sigilla l'incasso con stato 'annullata' (StornoIncassoRateAction) e crea una
+        // rettifica figlia: chi ha stornato è chi ha creato quella rettifica. Prima qui si
+        // controllava `stato === 'stornato'` (valore che la colonna non ammette) e si leggeva
+        // `dati_extra`, che le scritture non hanno: il ramo non si eseguiva mai.
         $utenteStornatore = null;
-        if ($scrittura->stato === 'stornato' && !empty($scrittura->dati_extra['stornato_da_user_id'])) {
-            $utenteStornatore = DB::table('users')
-                ->where('id', $scrittura->dati_extra['stornato_da_user_id'])
-                ->value('name');
+        if ($scrittura->stato === 'annullata') {
+            $stornatoreId = \App\Models\Gestionale\ScritturaContabile::where('scrittura_padre_id', $scrittura->id)
+                ->where('tipo_movimento', \App\Enums\TipoMovimentoContabile::RETTIFICA)
+                ->latest('id')
+                ->value('created_by');
+
+            $utenteStornatore = $stornatoreId
+                ? DB::table('users')->where('id', $stornatoreId)->value('name')
+                : null;
         }
 
         // Recuperiamo anche i formati frontend se vogliamo riciclare le stesse strutture logiche

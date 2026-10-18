@@ -44,8 +44,25 @@ trait HasEsercizio
      */
     protected function getEsercizioCorrente(Condominio $condominio)
     {
-        return $condominio->esercizi()
+        // Le FormRequest ammettono un solo esercizio aperto, ma due aperti possono comparire
+        // (ripristino di un backup anteriore al vincolo, dati importati). Con `->first()` senza
+        // ordinamento l'esercizio «corrente» cambiava da una richiesta all'altra. La scelta ora è
+        // fissa: quello che contiene la data di oggi, altrimenti il più recente. Con un solo
+        // esercizio aperto il risultato è lo stesso di prima.
+        $aperti = $condominio->esercizi()
             ->where('stato', 'aperto')
-            ->first();
+            ->orderByDesc('data_inizio')
+            ->orderByDesc('id')
+            ->get();
+
+        if ($aperti->count() <= 1) {
+            return $aperti->first();
+        }
+
+        $oggi = now()->startOfDay();
+
+        return $aperti->first(fn ($e) => $e->data_inizio && $e->data_inizio->lte($oggi)
+                && (! $e->data_fine || $e->data_fine->gte($oggi)))
+            ?? $aperti->first();
     }
 }

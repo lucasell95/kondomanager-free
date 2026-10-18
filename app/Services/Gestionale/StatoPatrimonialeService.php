@@ -30,6 +30,18 @@ use Illuminate\Support\Facades\DB;
  *
  * Le scritture annullate (soft-deleted) sono sempre escluse.
  *
+ * PER ESERCIZIO. Il prospetto di un esercizio è una fotografia a fine esercizio:
+ *   - i conti PATRIMONIALI (attivo, passivo) sono cumulativi: tutte le scritture
+ *     dell'esercizio e di quelli che lo precedono. Non ci sono scritture di chiusura
+ *     e riapertura, quindi la banca di fine anno è la somma di tutti i movimenti
+ *     dall'inizio, non le sole variazioni dell'anno;
+ *   - i conti ECONOMICI (costo, ricavo) sono del solo esercizio: il risultato
+ *     d'esercizio è quello dell'anno.
+ * Il risultato degli esercizi precedenti, che i patrimoniali portano dentro ma che
+ * nessuna scrittura ha chiuso, entra nel patrimonio netto come voce a sé
+ * (`risultato_esercizi_precedenti`): senza, dal secondo esercizio l'equazione non
+ * chiuderebbe più. Nel primo esercizio vale 0 e il prospetto è quello di sempre.
+ *
  * @see docs/fondo_accantonato_e_quadratura_sp.md
  */
 class StatoPatrimonialeService
@@ -38,7 +50,7 @@ class StatoPatrimonialeService
      * @return array{
      *     attivo: array{totale:int, voci:array},
      *     passivo: array{totale:int, voci:array},
-     *     costi:int, ricavi:int, risultato_esercizio:int,
+     *     costi:int, ricavi:int, risultato_esercizio:int, risultato_esercizi_precedenti:int,
      *     liquidita_non_contabilizzata:int,
      *     sbilancio:int, quadra:bool
      * }
@@ -57,6 +69,10 @@ class StatoPatrimonialeService
 
         $risultato = $ricavi - $costi;
 
+        // Costi e ricavi degli esercizi precedenti (vedi la nota in testa alla classe).
+        $risultatoPrecedenti = (int) $saldi->where('tipo', 'ricavo')->sum('saldo_precedenti')
+            - (int) $saldi->where('tipo', 'costo')->sum('saldo_precedenti');
+
         // Saldi di apertura delle casse non ancora portati a giornale (installazioni
         // aggiornate ma con la migrazione di backfill non ancora eseguita). Sono
         // liquidità REALE priva di contropartita contabile: va esposta, non nascosta,
@@ -67,7 +83,7 @@ class StatoPatrimonialeService
 
         $totaleAttivo += $liquiditaNonContabilizzata;
 
-        $sbilancio = $totaleAttivo - $totalePassivo - $risultato;
+        $sbilancio = $totaleAttivo - $totalePassivo - $risultato - $risultatoPrecedenti;
 
         return [
             'attivo' => [
@@ -81,6 +97,7 @@ class StatoPatrimonialeService
             'costi'                        => $costi,
             'ricavi'                       => $ricavi,
             'risultato_esercizio'          => $risultato,
+            'risultato_esercizi_precedenti' => $risultatoPrecedenti,
             'liquidita_non_contabilizzata' => $liquiditaNonContabilizzata,
             'sbilancio'                    => $sbilancio,
             'quadra'                       => $sbilancio === 0,
@@ -95,17 +112,34 @@ class StatoPatrimonialeService
 
     /**
      * Saldo di ogni conto contabile, già orientato secondo la natura del conto.
+     *
+     * Senza esercizio: tutte le scritture. Con l'esercizio: i patrimoniali fino a fine
+     * esercizio (questo e i precedenti), gli economici del solo esercizio; per questi
+     * ultimi `saldo_precedenti` porta la parte degli esercizi prima.
      */
     private function saldiPerConto(Condominio $condominio, ?Esercizio $esercizio)
     {
+        // Gli esercizi che la fotografia include: questo e quelli iniziati prima.
+        $eserciziInclusi = $esercizio
+            ? Esercizio::where('condominio_id', $condominio->id)
+                ->whereDate('data_inizio', '<=', $esercizio->data_inizio)
+                ->pluck('id')
+                ->push($esercizio->id)
+                ->unique()
+                ->all()
+            : null;
+
+        // `sc.esercizio_id = <id>`: l'id è un intero del modello, non un input.
+        $soloEsercizio = $esercizio ? 'sc.esercizio_id = '.(int) $esercizio->id : '1 = 1';
+
         $query = DB::table('conti_contabili as cc')
             ->leftJoin('righe_scritture as rs', 'rs.conto_contabile_id', '=', 'cc.id')
-            ->leftJoin('scritture_contabili as sc', function ($join) use ($esercizio) {
+            ->leftJoin('scritture_contabili as sc', function ($join) use ($eserciziInclusi) {
                 $join->on('rs.scrittura_id', '=', 'sc.id')
                      ->whereNull('sc.deleted_at');
 
-                if ($esercizio) {
-                    $join->where('sc.esercizio_id', '=', $esercizio->id);
+                if ($eserciziInclusi !== null) {
+                    $join->whereIn('sc.esercizio_id', $eserciziInclusi);
                 }
             })
             ->where('cc.condominio_id', $condominio->id)
@@ -119,27 +153,36 @@ class StatoPatrimonialeService
                 'cc.categoria',
                 DB::raw("COALESCE(SUM(CASE WHEN sc.id IS NULL THEN 0 WHEN rs.tipo_riga = 'dare' THEN rs.importo ELSE 0 END), 0) as dare"),
                 DB::raw("COALESCE(SUM(CASE WHEN sc.id IS NULL THEN 0 WHEN rs.tipo_riga = 'avere' THEN rs.importo ELSE 0 END), 0) as avere"),
+                DB::raw("COALESCE(SUM(CASE WHEN sc.id IS NULL THEN 0 WHEN {$soloEsercizio} AND rs.tipo_riga = 'dare' THEN rs.importo ELSE 0 END), 0) as dare_esercizio"),
+                DB::raw("COALESCE(SUM(CASE WHEN sc.id IS NULL THEN 0 WHEN {$soloEsercizio} AND rs.tipo_riga = 'avere' THEN rs.importo ELSE 0 END), 0) as avere_esercizio"),
             ]);
 
         return collect($query->get())->map(function ($riga) {
-            $dare  = (int) $riga->dare;
-            $avere = (int) $riga->avere;
+            $natura = in_array($riga->tipo, ['attivo', 'costo'], true) ? 1 : -1;
+            $economico = in_array($riga->tipo, ['costo', 'ricavo'], true);
+
+            // Patrimoniali: cumulativi. Economici: del solo esercizio.
+            $dare  = (int) ($economico ? $riga->dare_esercizio : $riga->dare);
+            $avere = (int) ($economico ? $riga->avere_esercizio : $riga->avere);
 
             // Conti di natura DARE (attivo, costo) vs natura AVERE (passivo, ricavo).
-            $saldo = in_array($riga->tipo, ['attivo', 'costo'], true)
-                ? $dare - $avere
-                : $avere - $dare;
+            $saldo = $natura * ($dare - $avere);
+
+            $saldoPrecedenti = $economico
+                ? $natura * (((int) $riga->dare - (int) $riga->avere) - ($dare - $avere))
+                : 0;
 
             return [
-                'id'        => $riga->id,
-                'codice'    => $riga->codice,
-                'nome'      => $riga->nome,
-                'tipo'      => $riga->tipo,
-                'categoria' => $riga->categoria,
-                'dare'      => $dare,
-                'avere'     => $avere,
-                'saldo'     => $saldo,
+                'id'               => $riga->id,
+                'codice'           => $riga->codice,
+                'nome'             => $riga->nome,
+                'tipo'             => $riga->tipo,
+                'categoria'        => $riga->categoria,
+                'dare'             => $dare,
+                'avere'            => $avere,
+                'saldo'            => $saldo,
+                'saldo_precedenti' => $saldoPrecedenti,
             ];
-        })->filter(fn ($c) => $c['saldo'] !== 0 || $c['dare'] !== 0 || $c['avere'] !== 0);
+        })->filter(fn ($c) => $c['saldo'] !== 0 || $c['dare'] !== 0 || $c['avere'] !== 0 || $c['saldo_precedenti'] !== 0);
     }
 }

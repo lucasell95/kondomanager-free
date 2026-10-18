@@ -160,7 +160,8 @@ class StoreIncassoRateAction
             }
 
             if (!$gestioneId) {
-                $gestioneId = $esercizio->gestioni()->first()->id;
+                $gestioneId = $esercizio->gestioni()->first()?->id
+                    ?? throw new \App\Exceptions\Gestionale\IncassoSenzaGestioneException();
             }
 
             // VARIABILI DI CONTROLLO CASSA
@@ -179,6 +180,7 @@ class StoreIncassoRateAction
                 'causale'            => $validated['descrizione'] ?: 'Incasso rate',
                 'tipo_movimento'     => 'incasso_rata',
                 'stato'              => 'registrata',
+                'created_by'         => auth()->id(),
             ]);
 
             if ($importoTotaleCents > 0) {
@@ -332,6 +334,7 @@ class StoreIncassoRateAction
                     'causale'            => 'Compensazione credito pregresso - ' . ($validated['descrizione'] ?: 'Incasso rate'),
                     'tipo_movimento'     => 'storno_credito',
                     'stato'              => 'registrata',
+                    'created_by'         => auth()->id(),
                 ]);
 
                 foreach ($pagamentiCredito as $pagamentoCredito) {

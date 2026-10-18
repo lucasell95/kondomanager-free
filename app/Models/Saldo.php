@@ -31,7 +31,9 @@ class Saldo extends Model
         // progetto — vedi `docs/architettura_saldi_iniziali.md`. Il commento diceva il
         // contrario, e stava proprio sulla riga che chiunque legge per capire il segno.
         'saldo_iniziale', // Debito (+) o Credito (-) pregresso in centesimi
-        'saldo_finale',   // Saldo risultante a fine esercizio
+        // `saldo_finale` non c'è più: la colonna è stata tolta dalla migrazione del 01/03/2026
+        // (il saldo finale si calcola, non si salva). Lasciarlo assegnabile faceva fallire con
+        // un errore SQL qualunque scrittura che lo valorizzasse.
         'origine',        // 'manuale', 'importato', 'automatico'
         'is_applicato',   // Se true, il saldo è bloccato perché già inserito in un piano rate (Novità v1.9)
         'fornitore_id',
@@ -44,7 +46,6 @@ class Saldo extends Model
      */
     protected $casts = [
         'saldo_iniziale' => 'integer',
-        'saldo_finale'   => 'integer',
         'is_applicato'   => 'boolean',
         'origine'        => 'string',
     ];

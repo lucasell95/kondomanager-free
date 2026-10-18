@@ -18,7 +18,8 @@ class GenerateRateQuotesAction
         PianoRate $pianoRate,
         array $totaliPerImmobile,
         array $dateRate,
-        array $saldi = []
+        array $saldi = [],
+        array $addebitiDiretti = []
     ): array {
         $numeroRate = count($dateRate);
         $rateCreate = 0;
@@ -201,6 +202,14 @@ class GenerateRateQuotesAction
                             $metaStoricoSaldo = $datiSaldo['meta_storico'];
                         }
 
+                        // 2-bis. Parte ad personam della quota pura: la spesa di una sola unità
+                        // che la fattura ha già registrato su Crediti verso condòmini. Si spalma
+                        // come il totale e non supera la quota pura della rata.
+                        $quotaAdPersonamRata = $calcolaFettina($addebitiDiretti[$aid][$iid] ?? 0, $numeroRate, $numeroRata);
+                        $quotaAdPersonamRata = $quotaOrdinariaRata > 0
+                            ? max(0, min($quotaAdPersonamRata, $quotaOrdinariaRata))
+                            : 0;
+
                         $importoFinale = $quotaOrdinariaRata + $quotaSaldoRata;
                         $eZero = $importoFinale == 0 && $quotaOrdinariaRata == 0 && $quotaSaldoRata == 0;
 
@@ -252,6 +261,11 @@ class GenerateRateQuotesAction
                                 'generato_da'       => Auth::check() ? 'user_'.Auth::id() : 'sistema',
                             ]
                         ];
+
+                        // Solo quando c'è: le quote senza addebiti ad personam restano identiche.
+                        if ($quotaAdPersonamRata > 0) {
+                            $snapshot['importi']['addebito_diretto'] = $quotaAdPersonamRata;
+                        }
 
                         if ($metaStoricoSaldo && $quotaSaldoRata != 0) {
                             $snapshot['dettagli_saldo'] = $metaStoricoSaldo;

@@ -4,6 +4,7 @@ namespace App\Actions\Gestionale\Movimenti;
 
 use App\Enums\TipoMovimentoContabile;
 use App\Models\Condominio;
+use App\Models\Esercizio;
 use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\DB;
@@ -29,17 +30,25 @@ class StornoIncassoRateAction
                 // Protezione contro i doppi click
                 if ($scr->stato === 'annullata') continue;
 
+                // 2. Cross-esercizio: stessa regola di StornaGirocontoAction (Variante B1). Un
+                //    esercizio chiuso non si riscrive: se l'incasso sta in un esercizio chiuso, la
+                //    rettifica si appoggia all'esercizio aperto, con la provenienza in causale e la
+                //    data di oggi (lo storno è un fatto dell'esercizio nuovo). Prima la rettifica
+                //    finiva nell'esercizio chiuso, alterando un esercizio già rendicontato.
+                [$esercizioId, $dataCompetenza, $causale] = $this->collocazione($scr, $condominio);
+
                 // 3. Creiamo la Scrittura speculare di Rettifica
                 $rettifica = ScritturaContabile::create([
                     'condominio_id'      => $condominio->id,
-                    'esercizio_id'       => $scr->esercizio_id,
+                    'esercizio_id'       => $esercizioId,
                     'gestione_id'        => $scr->gestione_id,
                     'scrittura_padre_id' => $scr->id, // 🟢 LINK DIRETTO ALLA SCRITTURA ORIGINALE
                     'data_registrazione' => now(),
-                    'data_competenza'    => $scr->data_competenza,
-                    'causale'            => 'Storno: ' . $scr->causale,
+                    'data_competenza'    => $dataCompetenza,
+                    'causale'            => mb_substr($causale, 0, 255),
                     'tipo_movimento'     => 'rettifica',
                     'stato'              => 'registrata',
+                    'created_by'         => auth()->id(),
                     'note'               => 'Annullamento prot. ' . $scr->numero_protocollo,
                 ]);
 
@@ -65,7 +74,7 @@ class StornoIncassoRateAction
                     // Attach() con importo negativo per stornare
                     $quota->pagamenti()->attach($rettifica->id, [
                         'importo_pagato' => -$importoStorico,
-                        'data_pagamento' => $scr->data_competenza,
+                        'data_pagamento' => $dataCompetenza,
                     ]);
                     
                     // Ricalcolo dello stato leggendo la nuova pivot aggiornata
@@ -81,5 +90,43 @@ class StornoIncassoRateAction
                 $scr->update(['stato' => 'annullata']);
             }
         });
+    }
+
+    /**
+     * Dove va la rettifica: esercizio, data di competenza e causale.
+     *
+     * Esercizio dell'originale aperto → lì, con la data dell'originale (com'era sempre).
+     * Esercizio chiuso (o mancante) → nell'esercizio aperto, con la data di oggi e la provenienza
+     * in causale. Senza un esercizio aperto lo storno non si può registrare.
+     *
+     * @return array{0: int, 1: mixed, 2: string}
+     *
+     * @throws \DomainException
+     */
+    private function collocazione(ScritturaContabile $scr, Condominio $condominio): array
+    {
+        $originale = $scr->esercizio;
+
+        if ($originale && $originale->stato !== 'chiuso') {
+            return [$scr->esercizio_id, $scr->data_competenza, 'Storno: ' . $scr->causale];
+        }
+
+        $aperto = Esercizio::where('condominio_id', $condominio->id)
+            ->where('stato', 'aperto')
+            ->orderByDesc('data_inizio')
+            ->first();
+
+        if (! $aperto) {
+            throw new \DomainException(
+                "L'esercizio dell'incasso è chiuso e non esiste un esercizio aperto in cui "
+                . 'registrare lo storno. Apri l\'esercizio successivo e riprova.'
+            );
+        }
+
+        return [
+            $aperto->id,
+            now()->toDateString(),
+            sprintf('Storno: %s. Originale in esercizio «%s».', $scr->causale, $originale?->nome ?? '—'),
+        ];
     }
 }

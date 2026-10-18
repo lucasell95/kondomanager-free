@@ -371,11 +371,24 @@ class GeneratePianoRateAction
         $dateRate = $this->dateRateAction->execute($pianoRate, $gestione);
 
         // 5. Creazione Rate Fisiche
+        //
+        // Gli addebiti ad personam (righe di fattura su una sola unità) vanno passati a parte:
+        // la fattura li ha già messi su Crediti verso condòmini con l'immobile, e l'emissione
+        // deve sapere quale parte della quota è quella, per non addebitarla una seconda volta
+        // (vedi EmissioneRateController, «addebito_diretto»).
+        $addebitiDiretti = [];
+        foreach ($this->calcolatore->getAddebitiDiretti() as $addebito) {
+            $aid = (int) $addebito['anagrafica_id'];
+            $iid = (int) $addebito['immobile_id'];
+            $addebitiDiretti[$aid][$iid] = ($addebitiDiretti[$aid][$iid] ?? 0) + (int) $addebito['importo'];
+        }
+
         $stats = $this->rateQuotesAction->execute(
             $pianoRate,
             $totaliPerImmobile,
             $dateRate,
-            $saldi
+            $saldi,
+            $addebitiDiretti
         );
 
         // 6. LUCCHETTO SALDI

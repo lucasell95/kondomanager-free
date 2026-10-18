@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCurrencyFormatter } from '@/composables/useCurrencyFormatter';
 import { useDateConverter } from '@/composables/useDateConverter';
-import { ArrowLeft, Printer, Mail, Wallet, ArrowDownCircle, ArrowUpCircle, Building2, Landmark,FileText, Banknote, HelpCircle, RotateCcw, CheckCircle2, AlertCircle, PieChart, Coins, Info, XCircle, ChevronDown, Rows3, Layers } from 'lucide-vue-next';
+import { ArrowLeft, Printer, Mail, Wallet, ArrowDownCircle, ArrowUpCircle, Building2, Landmark,FileText, Banknote, HelpCircle, RotateCcw, CheckCircle2, AlertCircle, PieChart, Coins, Info, XCircle, ChevronDown, Rows3, Layers, Calendar } from 'lucide-vue-next';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useUrlPrecedente } from '@/composables/useUrlPrecedente';
@@ -41,6 +41,8 @@ const props = defineProps<{
   };
   /** `aggregata` (predefinita): una riga per movimento. `unita`: una riga per unità immobiliare. */
   vista?: 'aggregata' | 'unita';
+  /** Gli esercizi del condominio, dal più recente: con più di uno compare il selettore. */
+  esercizi?: Array<Pick<Esercizio, 'id' | 'nome' | 'stato'>>;
 }>();
 
 const { euro } = useCurrencyFormatter({ fromCents: false }); 
@@ -56,6 +58,22 @@ const goBack = () => {
 const vistaCorrente = computed(() => props.vista ?? 'aggregata');
 
 /**
+ * L'esercizio va sempre nella query string (`?esercizio=`), anche quando è quello corrente: la
+ * pagina, il cambio di vista e il PDF mostrano così lo stesso periodo.
+ */
+const parametriEsercizio = computed(() => ({ esercizio: props.esercizio.id }));
+
+/** Cambia esercizio: si ricarica tutto, perché saldo iniziale, movimenti e totali cambiano. */
+const cambiaEsercizio = (esercizioId: number) => {
+    if (esercizioId === props.esercizio.id) return;
+    router.get(
+        route('admin.gestionale.anagrafiche.estratto-conto', { condominio: props.condominio.id, anagrafica: props.anagrafica.id }),
+        { esercizio: esercizioId, vista: vistaCorrente.value },
+        { preserveScroll: true },
+    );
+};
+
+/**
  * Cambia vista restando sulla pagina. La scelta va nella query string (`?vista=`), così il link è
  * condivisibile; si ricarica solo la timeline, perché i totali sono gli stessi nelle due viste.
  */
@@ -63,7 +81,7 @@ const cambiaVista = (vista: 'aggregata' | 'unita') => {
     if (vista === vistaCorrente.value) return;
     router.get(
         route('admin.gestionale.anagrafiche.estratto-conto', { condominio: props.condominio.id, anagrafica: props.anagrafica.id }),
-        { vista },
+        { vista, ...parametriEsercizio.value },
         { preserveScroll: true, preserveState: true, replace: true, only: ['timeline', 'vista'] },
     );
 };
@@ -73,6 +91,7 @@ const printPDF = (vista: 'aggregata' | 'unita' = vistaCorrente.value) => {
         condominio: props.condominio.id,
         anagrafica: props.anagrafica.id,
         vista,
+        ...parametriEsercizio.value,
     });
     window.open(url, '_blank');
 };
@@ -402,7 +421,39 @@ const getImportoStyle = (riga: any) => {
                                 </Tooltip>
                             </TooltipProvider>
                         </div>
-                        <div class="text-xs text-muted-foreground">{{ esercizio.nome }}</div>
+                        <!-- Selettore di esercizio: compare solo con più esercizi, come nell'intestazione
+                             delle altre pagine. Saldo iniziale, movimenti e totali sono di quello scelto. -->
+                        <DropdownMenu v-if="(esercizi?.length ?? 0) > 1">
+                            <DropdownMenuTrigger as-child>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+                                    :aria-label="trans('gestionale.estratto_conto.esercizio.label')"
+                                    :title="trans('gestionale.estratto_conto.esercizio.help')"
+                                >
+                                    <Calendar class="w-3.5 h-3.5 text-slate-400" />
+                                    {{ esercizio.nome }}
+                                    <ChevronDown class="w-3 h-3 opacity-60" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" class="min-w-[180px]">
+                                <DropdownMenuLabel class="text-[10px] text-slate-400 uppercase tracking-widest px-2 py-1.5 font-bold">
+                                    {{ trans('gestionale.estratto_conto.esercizio.label') }}
+                                </DropdownMenuLabel>
+                                <DropdownMenuSeparator class="bg-slate-100" />
+                                <DropdownMenuItem
+                                    v-for="e in esercizi"
+                                    :key="e.id"
+                                    class="cursor-pointer text-xs"
+                                    :class="{ 'font-semibold text-primary': e.id === esercizio.id }"
+                                    @click="cambiaEsercizio(e.id)"
+                                >
+                                    {{ e.nome }}
+                                    <span v-if="e.stato === 'chiuso'" class="ml-auto text-[10px] text-slate-400">{{ trans('gestionale.estratto_conto.esercizio.chiuso') }}</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <div v-else class="text-xs text-muted-foreground">{{ esercizio.nome }}</div>
                     </div>
                 </div>
             </div>

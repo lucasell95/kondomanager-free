@@ -2130,6 +2130,11 @@ return [
             'registrazione' => 'Registrata il :date',
             'operazione_help' => 'Data dell\'operazione (emissione, pagamento, compensazione)',
         ],
+        'esercizio' => [
+            'label' => 'Esercizio',
+            'help' => 'Movimenti e saldo iniziale dell\'esercizio scelto.',
+            'chiuso' => 'chiuso',
+        ],
         'vista' => [
             'label' => 'Vista dei movimenti',
             'aggregata' => 'Aggregata',
