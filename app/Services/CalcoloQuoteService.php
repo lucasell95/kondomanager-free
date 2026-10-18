@@ -130,6 +130,12 @@ class CalcoloQuoteService
      */
     private array $addebitiDiretti = [];
 
+    /**
+     * Acceso solo da `ripartisciConsuntivo()`: il consuntivo vuole la quota lorda, e il già versato
+     * lo espone il rendiconto in una colonna sua. Vedi la nota su quel metodo.
+     */
+    private bool $senzaNetting = false;
+
     // =========================================================================
     // MOTORE ORDINARIO
     // =========================================================================
@@ -541,6 +547,125 @@ class CalcoloQuoteService
         ]);
 
         return $totali;
+    }
+
+    // =========================================================================
+    // MOTORE CONSUNTIVO (rendiconto, sola lettura)
+    // =========================================================================
+
+    /**
+     * Riparto **consuntivo**: distribuisce lo speso effettivo di ogni voce con le tabelle e i
+     * criteri della voce stessa, con la stessa aritmetica del preventivo (pesi, cascata del
+     * ruolo, scoperti, resti maggiori al centesimo).
+     *
+     * Differenze volute rispetto a `calcolaPerGestione()`:
+     *
+     * - l'importo non è il budget del conto ma quello passato (lo speso letto dal giornale),
+     *   **con il suo segno**: una voce con più note di credito che fatture accredita;
+     * - una voce di spesa senza tabelle propria usa quelle del primo antenato che le ha (una
+     *   fattura registrata sul capitolo invece che sul sottoconto non resta scoperta);
+     * - **niente netting del già versato**: il consuntivo restituisce la quota lorda, e chi
+     *   stampa il rendiconto espone i contributi già versati in una colonna a parte. Sottrarli qui
+     *   in proporzione al budget (come fa il preventivo per le tranche) darebbe un conguaglio
+     *   sbagliato ogni volta che lo speso differisce dal preventivo.
+     *
+     * Non scrive nulla.
+     *
+     * @param  array<int,int>  $spesePerVoce  `conto_id => centesimi` (positivo = spesa da addebitare)
+     * @param  array<int,int>  $addebitiPerImmobile  spese ad personam: `immobile_id => centesimi`
+     * @return array{
+     *     per_voce: array<int, array<int, array<int,int>>>,
+     *     diretti: array<int, array<int, array<int,int>>>,
+     *     scoperti: array,
+     *     millesimi_non_compilati: array
+     * } `per_voce`: `conto_id => [anagrafica_id => [immobile_id => centesimi]]`;
+     *   `diretti`: `immobile_id => [anagrafica_id => [immobile_id => centesimi]]`.
+     */
+    public function ripartisciConsuntivo(array $spesePerVoce, array $addebitiPerImmobile = []): array
+    {
+        $this->gestioneCorrente      = null;
+        $this->pivotOverrides        = [];
+        $this->pianoRateCreatedAt    = null;
+        $this->scopertiAccumulati    = [];
+        $this->millesimiNonCompilati = [];
+        $this->eccedenzeCopertura    = [];
+        $this->importiRipartiti      = [];
+        $this->nettingApplicato      = [];
+        $this->addebitiDiretti       = [];
+        $this->senzaNetting          = true;
+
+        try {
+            $relazioni = [
+                'tabelleMillesimali.tabella.quote.immobile.anagrafiche',
+                'tabelleMillesimali.ripartizioni',
+            ];
+
+            $conti = Conto::with($relazioni)
+                ->whereIn('id', array_keys($spesePerVoce))
+                ->get()
+                ->keyBy('id');
+
+            $perVoce = [];
+
+            foreach ($spesePerVoce as $contoId => $importo) {
+                $importo = (int) $importo;
+                if ($importo === 0) continue;
+
+                $conto = $conti->get($contoId);
+                if (! $conto) {
+                    Log::warning("ripartisciConsuntivo: conto_id={$contoId} non trovato, importo registrato come scoperto.");
+                    $this->scopertiAccumulati[] = [
+                        'immobile_id' => null, 'conto_id' => (int) $contoId, 'tabella_id' => null,
+                        'ruolo_richiesto' => null, 'importo' => abs($importo), 'motivo' => 'conto_senza_tabella',
+                    ];
+                    continue;
+                }
+
+                // Tabelle della voce o, in mancanza, del primo antenato che ne ha.
+                $ripartitore = $conto;
+                $visti = [];
+                while ($ripartitore->tabelleMillesimali->isEmpty() && $ripartitore->parent_id && ! isset($visti[$ripartitore->id])) {
+                    $visti[$ripartitore->id] = true;
+                    $padre = Conto::with($relazioni)->find($ripartitore->parent_id);
+                    if (! $padre) break;
+                    $ripartitore = $padre;
+                }
+                if ($ripartitore->tabelleMillesimali->isEmpty()) {
+                    $ripartitore = $conto;
+                }
+
+                $totaliVoce = [];
+                $this->distribuisciSuTabelle($ripartitore, $importo, $totaliVoce);
+                $perVoce[(int) $contoId] = $totaliVoce;
+            }
+
+            $diretti = [];
+            foreach ($addebitiPerImmobile as $immobileId => $importo) {
+                $importo = (int) $importo;
+                if ($importo === 0) continue;
+
+                $totaliDiretto = [];
+                $this->addebitaDiretto((int) $immobileId, $importo, $totaliDiretto);
+
+                if (empty($totaliDiretto)) {
+                    $this->scopertiAccumulati[] = [
+                        'immobile_id' => (int) $immobileId, 'conto_id' => null, 'tabella_id' => null,
+                        'ruolo_richiesto' => 'proprietario', 'importo' => abs($importo), 'motivo' => 'addebito_senza_titolare',
+                    ];
+                }
+
+                $diretti[(int) $immobileId] = $totaliDiretto;
+            }
+
+            return [
+                'per_voce'                => $perVoce,
+                'diretti'                 => $diretti,
+                'scoperti'                => $this->scopertiAccumulati,
+                'millesimi_non_compilati' => $this->getMillesimiNonCompilati(),
+            ];
+        } finally {
+            $this->senzaNetting = false;
+        }
     }
 
     /**
@@ -1254,7 +1379,9 @@ class CalcoloQuoteService
             ? $importoDaDistribuirePennyPerfect / abs($importoConto)
             : 1.0;
 
-        $importiDistributi = $this->nettingGiaVersato($conto, $importiDistributi, $fattoreCopertura);
+        if (! $this->senzaNetting) {
+            $importiDistributi = $this->nettingGiaVersato($conto, $importiDistributi, $fattoreCopertura);
+        }
 
         foreach ($importiDistributi as $key => $importoCentesimi) {
             [$aid, $iid] = array_map('intval', explode('|', $key));
