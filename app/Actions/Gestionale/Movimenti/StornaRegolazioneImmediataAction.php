@@ -4,6 +4,7 @@ namespace App\Actions\Gestionale\Movimenti;
 
 use App\Enums\TipoMovimentoContabile;
 use App\Exceptions\Gestionale\RegolazioneImmediataNonAmmessaException;
+use App\Helpers\DateHelper;
 use App\Models\Condominio;
 use App\Models\Esercizio;
 use App\Models\Gestionale\ScritturaContabile;
@@ -19,10 +20,21 @@ use Illuminate\Support\Facades\DB;
  * del sigillo contabile — lo storno è SEMPRE ammesso, anche su una scrittura
  * sigillata, perché aggiunge un fatto nuovo invece di riscriverne uno passato.
  *
+ * Data dello storno: lo storno di una regolazione immediata è quasi sempre la
+ * **rettifica di una registrazione sbagliata** (una spesa da riclassificare come
+ * fattura, un importo errato), non un fatto nuovo. Per questo, se l'esercizio
+ * dell'originale è aperto, la competenza è **quella dell'originale**: i due
+ * movimenti si annullano alla stessa data e il saldo di cassa «al giorno» resta
+ * giusto anche nei mesi in mezzo. Prima lo storno prendeva la data di oggi (in
+ * UTC): nel collaudo 1 (E2) due storni del 18/10 di regolazioni del 22 e 28/07
+ * lasciavano la banca a -135,54 € al 31/07 e 354,00 € di entrate inesistenti nel
+ * registro di cassa. `data_registrazione` resta il giorno in cui si registra.
+ *
  * Cross-esercizio: se l'esercizio dell'originale è nel frattempo stato chiuso, lo
- * storno viene registrato nell'esercizio corrente aperto, con la provenienza
- * indicata in causale. Stesso paradigma della Variante B1 già adottata per lo
- * storno dei pagamenti fornitore.
+ * storno viene registrato nell'esercizio corrente aperto, con la data di oggi e la
+ * provenienza indicata in causale (l'esercizio chiuso non si tocca). Stesso
+ * paradigma della Variante B1 già adottata per lo storno dei pagamenti fornitore e
+ * dei giroconti. «Oggi» è sempre nel fuso dell'utente (DateHelper::oggiUtente).
  */
 class StornaRegolazioneImmediataAction
 {
@@ -85,8 +97,10 @@ class StornaRegolazioneImmediataAction
                 'esercizio_id' => $esercizioTarget->id,
                 'gestione_id' => $scrittura->gestione_id,
                 'scrittura_padre_id' => $scrittura->id,
-                'data_registrazione' => now()->toDateString(),
-                'data_competenza' => now()->toDateString(),
+                'data_registrazione' => DateHelper::oggiUtente(),
+                'data_competenza' => $crossEsercizio
+                    ? DateHelper::oggiUtente()
+                    : ($scrittura->data_competenza?->toDateString() ?? DateHelper::oggiUtente()),
                 'causale' => mb_substr($causale, 0, 255),
                 'tipo_movimento' => TipoMovimentoContabile::STORNO_REGOLAZIONE_IMMEDIATA,
                 'stato' => 'registrata',
