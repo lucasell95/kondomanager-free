@@ -385,6 +385,36 @@ class EmissioneRateController extends Controller
             return back()->with($this->flashError('Impossibile annullare: ci sono già incassi registrati.'));
         }
 
+        // Stessa domanda, chiesta al giornale invece che alle quote: un incasso o una
+        // compensazione ancora validi che coprono questa rata (righe in AVERE con `rata_id`).
+        // Le quote e il giornale coincidono solo se ogni movimento passa da entrambi; se
+        // divergono, cancellare l'emissione lascerebbe un incasso a copertura di un addebito
+        // che non esiste più.
+        $haIncassiAGiornale = RigaScrittura::where('rata_id', $rata->id)
+            ->where('tipo_riga', 'avere')
+            ->whereHas('scrittura', fn ($q) => $q
+                ->whereIn('tipo_movimento', ['incasso_rata', 'storno_credito'])
+                ->where('stato', '!=', 'annullata'))
+            ->exists();
+
+        if ($haIncassiAGiornale) {
+            return back()->with($this->flashError('Impossibile annullare: ci sono incassi o compensazioni registrati su questa rata.'));
+        }
+
+        // ⚠️ **Un esercizio chiuso non si riscrive.** L'annullamento cancella le scritture
+        // dell'emissione (e i loro numeri di protocollo): su un esercizio già chiuso, e
+        // magari rendicontato, toglierebbe dal registro addebiti che il rendiconto contiene.
+        $esercizioChiuso = ScritturaContabile::whereIn('id', $rata->rateQuote()->pluck('scrittura_contabile_id')->filter()->unique())
+            ->whereHas('esercizio', fn ($q) => $q->where('stato', 'chiuso'))
+            ->with('esercizio:id,nome')
+            ->first()?->esercizio;
+
+        if ($esercizioChiuso) {
+            return back()->with($this->flashError(
+                "Impossibile annullare: l'emissione è registrata nell'esercizio «{$esercizioChiuso->nome}», che è chiuso."
+            ));
+        }
+
         $esercizio = $this->getEsercizioCorrente($condominio);
 
         if (!$esercizio) {
