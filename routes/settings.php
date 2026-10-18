@@ -51,6 +51,8 @@ Route::middleware('auth')->group(function () {
     Route::post('impostazioni/mail/test', [MailSettingsController::class, 'testConnection'])
         ->name('admin.settings.mail.test');
 
+    require __DIR__.'/settings_ia.php';
+
     // BACKUPS
     Route::get('impostazioni/backups', [BackupSettingsController::class, 'index'])
         ->name('impostazioni.backups');

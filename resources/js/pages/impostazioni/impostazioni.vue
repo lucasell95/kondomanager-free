@@ -4,7 +4,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue'
 import Heading from '@/components/Heading.vue'
 import { ref, computed } from 'vue'
-import { Users, Settings, DatabaseBackup, RefreshCw, Timer, Mail, Activity, Printer, Heart } from 'lucide-vue-next'
+import { Users, Settings, DatabaseBackup, RefreshCw, Timer, Mail, Activity, Printer, Heart, Sparkles } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item'
 import { trans } from 'laravel-vue-i18n';
@@ -80,6 +80,12 @@ const apps = computed(() => [
     logo: Mail,
     desc: 'impostazioni.dialogs.mail_settings_description',
     href: "/impostazioni/mail", 
+  },
+  {
+    name: 'ia.hub_title',
+    logo: Sparkles,
+    desc: 'ia.hub_description',
+    href: "/impostazioni/ia",
   },
   {
     name: 'impostazioni.dialogs.cron_settings_title', 
