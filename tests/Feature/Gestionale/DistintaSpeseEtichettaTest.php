@@ -17,7 +17,7 @@ test('la nota legale della distinta dice preventivo, non rendiconto', function (
     ]);
 
     $html = view('pdf.gestionale.distinta_spese', [
-        'condominio' => (object) ['nome' => 'Condominio Rossi'],
+        'condominio' => (object) ['nome' => 'Condominio Rossi', 'indirizzo' => 'Via Roma 1', 'codice_fiscale' => '91000000001'],
         'esercizio' => $esercizio,
         'pianoConto' => (object) ['nome' => 'Preventivo ordinario'],
         'conti' => collect(),
