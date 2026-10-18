@@ -2465,6 +2465,10 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'date' => [
+            'registrazione' => 'Registado em :date',
+            'operazione_help' => 'Data da operação (emissão, pagamento, compensação)',
+        ],
         'vista' => [
             'label' => 'Vista dos movimentos',
             'aggregata' => 'Agregada',

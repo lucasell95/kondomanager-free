@@ -2121,6 +2121,10 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'date' => [
+            'registrazione' => 'Registrata il :date',
+            'operazione_help' => 'Data dell\'operazione (emissione, pagamento, compensazione)',
+        ],
         'vista' => [
             'label' => 'Vista dei movimenti',
             'aggregata' => 'Aggregata',

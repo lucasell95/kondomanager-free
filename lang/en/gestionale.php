@@ -2110,6 +2110,10 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'date' => [
+            'registrazione' => 'Recorded on :date',
+            'operazione_help' => 'Operation date (issuance, payment, offset)',
+        ],
         'vista' => [
             'label' => 'Movements view',
             'aggregata' => 'Aggregated',

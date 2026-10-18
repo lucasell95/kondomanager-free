@@ -105,6 +105,22 @@ class EstrattoContoAnagraficaController extends Controller
     }
 
     /**
+     * La data in cui l'operazione è avvenuta: la competenza della scrittura.
+     *
+     * È il campo che i flussi di registrazione riempiono con la data dell'operazione: la data di
+     * emissione scelta per le rate (`EmissioneRateController`), la data del pagamento per incassi
+     * e compensazioni (`StoreIncassoRateAction`), quella della scrittura originaria per gli
+     * storni. La data di registrazione è invece il giorno in cui qualcuno l'ha inserita: un
+     * incasso del 10/07 caricato il 18/10 stava in coda all'estratto conto, con la data sbagliata.
+     *
+     * Ripiega sulla registrazione per le scritture che la competenza non l'hanno.
+     */
+    private function dataOperazione($scrittura): ?\Carbon\CarbonInterface
+    {
+        return $scrittura?->data_competenza ?? $scrittura?->data_registrazione;
+    }
+
+    /**
      * Costruisce la timeline (ledger) e le statistiche per una anagrafica.
      * Restituisce [$timeline, $stats, $saldoInizialeCents].
      */
@@ -170,11 +186,15 @@ class EstrattoContoAnagraficaController extends Controller
 
         // --- STEP 3: ORDINAMENTO VISIVO INTELLIGENTE ---
         $movimenti = $movimenti->sortBy(function($riga) {
+            // 0. Data dell'operazione (competenza): l'emissione al giorno dell'emissione, l'incasso
+            //    al giorno del pagamento — non al giorno in cui sono stati registrati. Un incasso
+            //    del 10/07 registrato il 18/10 sta fra le operazioni di luglio, e il saldo
+            //    progressivo segue lo stesso ordine.
             // 1. Raggruppamento per scrittura contabile originaria
             // 2. Dare (0) precede Avere (1) per garantire un flusso visivo lineare del Saldo Progressivo
             // 3. A parità di riga, ordina per importo decrescente
             $ordineRiga = $riga->tipo_riga === 'dare' ? 0 : 1; 
-            return [$riga->scrittura_id, $ordineRiga, -abs($riga->quotaPura)];
+            return [$this->dataOperazione($riga->scrittura)?->format('Y-m-d') ?? '', $riga->scrittura_id, $ordineRiga, -abs($riga->quotaPura)];
         })->values();
 
         // --- STEP 4: CREAZIONE TIMELINE & CALCOLO SALDI PROGRESSIVI ---
@@ -350,7 +370,10 @@ class EstrattoContoAnagraficaController extends Controller
 
             return [
                 'id'          => $riga->id,
-                'data'        => $riga->scrittura->data_registrazione ? $riga->scrittura->data_registrazione->format('d/m/Y') : '-',
+                // La data dell'operazione, non quella di registrazione (vedi `dataOperazione()`);
+                // la registrazione resta come informazione secondaria.
+                'data'        => $this->dataOperazione($riga->scrittura)?->format('d/m/Y') ?? '-',
+                'data_registrazione' => $riga->scrittura->data_registrazione?->format('d/m/Y'),
                 'protocollo'  => $riga->scrittura->numero_protocollo,
                 'descrizione' => $riga->scrittura->causale ?: 'Movimento Contabile',
                 'gestione'    => $riga->scrittura->gestione ? $riga->scrittura->gestione->nome : null,
