@@ -170,6 +170,12 @@ class DelegaF24Controller extends Controller
             // ritenute operate che non stanno in nessuna delega viva. È la stessa query
             // che poi le raccoglie, quindi non può divergere dal risultato del ricalcolo.
             'da_calcolare' => $this->scoperte($condominio),
+            // Le deleghe ancora da versare con un 1019/1020 ASSUNTO perché sull'anagrafica del
+            // fornitore manca la natura del percipiente: per una società di capitali il codice
+            // giusto è 1020. Il dettaglio sta nella scheda della delega.
+            'codici_da_verificare' => (clone $base)->aperte()->get()
+                ->filter(fn (DelegaF24 $d) => $this->genera->codiciDaVerificare($d) !== [])
+                ->count(),
             'soglie' => [
                 'appalti_cents' => (int) config('fiscale.plafond.appalto_4'),
                 'professionisti_cents' => (int) config('fiscale.plafond.lavoro_autonomo_20'),
@@ -193,6 +199,9 @@ class DelegaF24Controller extends Controller
             // stampa, la accompagnano. Dirlo qui — dove il pulsante sta — è l'unico momento
             // in cui l'informazione serve ancora a qualcosa: allo sportello è tardi.
             'campi_mancanti' => app(ModelloF24Service::class)->campiMancanti($delega),
+            // I fornitori per cui il codice 1019/1020 non è stato scelto ma assunto (manca la
+            // natura del percipiente). Va detto qui, prima di trascrivere o stampare la delega.
+            'codici_da_verificare' => $this->genera->codiciDaVerificare($delega),
         ]);
     }
 

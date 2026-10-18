@@ -26,9 +26,14 @@ enum NaturaPercipiente: string
         };
     }
 
-    /** IRES vs IRPEF, l'unica cosa che conta per scegliere fra 1019 e 1020. */
+    /**
+     * IRES vs IRPEF, l'unica cosa che conta per scegliere fra 1019 e 1020.
+     *
+     * Anche l'ente non commerciale è soggetto passivo IRES (art. 73 c. 1 lett. c TUIR): per
+     * lui il codice delle ritenute sugli appalti è 1020, non 1019.
+     */
     public function ires(): bool
     {
-        return $this === self::SOGGETTO_IRES;
+        return $this === self::SOGGETTO_IRES || $this === self::ENTE_NON_COMMERCIALE;
     }
 }

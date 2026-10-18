@@ -247,21 +247,104 @@ class GeneraDelegheF24Action
     /** IRPEF o IRES: decide 1019 contro 1020, e non si deduce dal tipo di spesa. */
     private function naturaPercipiente(PagamentoFornitore $pagamento): NaturaPercipiente
     {
+        return $this->naturaDichiarata($pagamento) ?? NaturaPercipiente::PERSONA_FISICA_IRPEF;
+    }
+
+    /**
+     * La natura del percipiente come l'utente l'ha indicata, o `null` se non l'ha indicata.
+     *
+     * In ordine: lo scatto al momento del pagamento, l'anagrafica di oggi, e infine il codice
+     * tributo «legacy» scritto a mano sull'anagrafica (1019/1020), che `RitenutaService` tratta
+     * già come override esplicito. Correggere l'anagrafica e ricalcolare le scadenze aggiorna
+     * quindi le **bozze**; le deleghe confermate o versate non vengono mai rigenerate.
+     *
+     * Quando non c'è niente, il generatore ripiega ancora su 1019 — la delega deve pur avere un
+     * codice — ma `codiciDaVerificare()` lo segnala: per una società di capitali il codice giusto
+     * è 1020, e un 1019 presentato al posto suo è un versamento imputato al tributo sbagliato.
+     */
+    public function naturaDichiarata(PagamentoFornitore $pagamento): ?NaturaPercipiente
+    {
         $snapshot = $pagamento->fornitore_snapshot ?? [];
 
         if (! empty($snapshot['natura_percipiente'])) {
             return NaturaPercipiente::from($snapshot['natura_percipiente']);
         }
 
-        $valore = $pagamento->fornitore?->natura_percipiente;
+        $fornitore = $pagamento->fornitore;
+        $valore = $fornitore?->natura_percipiente;
 
         if ($valore instanceof NaturaPercipiente) {
             return $valore;
         }
 
-        return $valore
-            ? NaturaPercipiente::from($valore)
-            : NaturaPercipiente::PERSONA_FISICA_IRPEF;
+        if ($valore) {
+            return NaturaPercipiente::from($valore);
+        }
+
+        return match ((string) ($fornitore?->codice_tributo ?? '')) {
+            '1020' => NaturaPercipiente::SOGGETTO_IRES,
+            '1019' => NaturaPercipiente::PERSONA_FISICA_IRPEF,
+            default => null,
+        };
+    }
+
+    /**
+     * Le righe di una delega ancora da versare il cui codice 1019/1020 è stato **assunto** e non
+     * deciso dall'utente, perché sull'anagrafica del fornitore manca la natura del percipiente.
+     *
+     * Non cambia niente: serve a dirlo dove la delega si guarda, prima di presentarla.
+     *
+     * @return array<int,array{fornitore_id: int|null, fornitore: string, codice_tributo: string, probabile_ires: bool}>
+     */
+    public function codiciDaVerificare(DelegaF24 $delega): array
+    {
+        if (! in_array($delega->stato, [StatoDelegaF24::BOZZA, StatoDelegaF24::CONFERMATA], true)) {
+            return [];
+        }
+
+        $delega->loadMissing('righe.pagamenti.fornitore');
+        $avvisi = [];
+
+        foreach ($delega->righe as $riga) {
+            // Solo gli appalti hanno l'alternativa 1019/1020: 1040 e 1001 non dipendono dalla natura.
+            if (! in_array($riga->codice_tributo, ['1019', '1020'], true)) {
+                continue;
+            }
+
+            foreach ($riga->pagamenti as $pagamento) {
+                if ($this->naturaDichiarata($pagamento) !== null) {
+                    continue;
+                }
+
+                $nome = $pagamento->fornitore_snapshot['ragione_sociale']
+                    ?? $pagamento->fornitore?->ragione_sociale
+                    ?? "Fornitore #{$pagamento->fornitore_id}";
+
+                $avvisi[$pagamento->fornitore_id ?? $nome] = [
+                    'fornitore_id' => $pagamento->fornitore_id,
+                    'fornitore' => $nome,
+                    'codice_tributo' => $riga->codice_tributo,
+                    // Solo un indizio per il messaggio, mai usato per scegliere il codice.
+                    'probabile_ires' => self::sembraSocietaDiCapitali($nome),
+                ];
+            }
+        }
+
+        return array_values($avvisi);
+    }
+
+    /** La ragione sociale porta la forma di una società di capitali (S.r.l., S.p.A., ...)? */
+    public static function sembraSocietaDiCapitali(?string $ragioneSociale): bool
+    {
+        $testo = strtolower(preg_replace('/[^a-z]/i', '', (string) $ragioneSociale));
+
+        foreach (['srl', 'srls', 'spa', 'sapa', 'scarl', 'scrl', 'socoop', 'societacooperativa'] as $forma) {
+            if (str_ends_with($testo, $forma)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function creaDelega(Condominio $condominio, int $esercizioId, array $gruppo, array $righe): DelegaF24
