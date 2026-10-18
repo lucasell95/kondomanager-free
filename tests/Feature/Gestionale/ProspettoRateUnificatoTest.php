@@ -84,9 +84,11 @@ function prospettoInserisciPiano(array $ctx, int $gestioneId, string $nome, stri
 
 function setupProspettoUnificato(): array
 {
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'Accesso pannello amministratore', 'guard_name' => 'web']);
     $role = Role::firstOrCreate(['name' => 'amministratore', 'guard_name' => 'web']);
     $user = User::factory()->create();
     $user->assignRole($role);
+    $user->givePermissionTo('Accesso pannello amministratore');
 
     $condominio = Condominio::factory()->create();
 

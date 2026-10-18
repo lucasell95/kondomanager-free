@@ -35,9 +35,11 @@ uses(RefreshDatabase::class);
 
 function ecAggScenario(): object
 {
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'Accesso pannello amministratore', 'guard_name' => 'web']);
     $role = Role::firstOrCreate(['name' => 'amministratore', 'guard_name' => 'web']);
     $user = User::factory()->create();
     $user->assignRole($role);
+    $user->givePermissionTo('Accesso pannello amministratore');
 
     $condominio = Condominio::create([
         'nome' => 'Condominio Vista Aggregata', 'uuid' => (string) Str::uuid(),
