@@ -194,6 +194,11 @@ return [
             'plan_approved' => 'Aprovado',
             'plan_draft' => 'Rascunho',
             'open_plan' => 'Abrir o plano',
+            'back_to_unified' => 'Voltar ao unificado',
+            'show_plan' => 'Mostrar só este plano',
+            'single_plan_notice' => 'Está a ver um só plano',
+            'open_plan_page' => 'Abrir a página do plano',
+            'section_title' => 'Mapa unificado',
             'cards' => [
                 'total' => 'Total do ano',
                 'collected' => 'Cobrado',

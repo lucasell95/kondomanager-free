@@ -194,6 +194,11 @@ return [
             'plan_approved' => 'Approved',
             'plan_draft' => 'Draft',
             'open_plan' => 'Open plan',
+            'back_to_unified' => 'Back to unified',
+            'show_plan' => 'Show this plan only',
+            'single_plan_notice' => 'You are viewing a single plan',
+            'open_plan_page' => 'Open the plan page',
+            'section_title' => 'Unified schedule',
             'cards' => [
                 'total' => 'Year total',
                 'collected' => 'Collected',

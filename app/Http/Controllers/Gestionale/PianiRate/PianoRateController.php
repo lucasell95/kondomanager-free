@@ -96,6 +96,8 @@ class PianoRateController extends Controller
                 'total' => $pianiRate->total()
             ],
             'filters' => $request->only(['nome']),
+            // Prospetto unificato dell'esercizio (sola lettura), mostrato sopra l'elenco dei piani.
+            'prospetto' => app(\App\Services\Gestionale\ProspettoRateUnificatoService::class)->calcola($condominio, $esercizio),
             'sort'      => $validated['sort'] ?? null,
             'direction' => $validated['direction'] ?? null,
         ]);
