@@ -9,6 +9,7 @@ import { Plus, LoaderCircle, Info, ShieldCheck, Truck, UserPlus } from 'lucide-v
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import InputError from '@/components/InputError.vue';
+import DatiPercipienteCu from '@/components/fornitori/DatiPercipienteCu.vue';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
@@ -109,6 +110,15 @@ const form = useForm({
     forfetario_riferimento: '',
     provvigioni_base_ridotta: false,
     provvigioni_dichiarazione_il: '',
+
+    // --- Dati del percipiente persona fisica per la CU ---
+    cognome: '',
+    nome: '',
+    sesso: '',
+    data_nascita: '',
+    comune_nascita: '',
+    provincia_nascita: '',
+    codice_catastale_nascita: '',
 });
 
 const moneyOptions = ref({
@@ -523,6 +533,9 @@ const submit = () => {
                 </Transition>
             </CardContent>
         </Card>
+
+        <DatiPercipienteCu :form="form" />
+
 
         <Card class="border-dashed shadow-sm bg-slate-50/50 dark:bg-slate-900/20">
             <CardHeader class="pb-3 border-b border-dashed mb-4">

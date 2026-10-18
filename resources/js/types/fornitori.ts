@@ -47,5 +47,12 @@ export interface Fornitore {
   forfetario_riferimento?: string | null;
   provvigioni_base_ridotta?: boolean;
   provvigioni_dichiarazione_il?: string | null;
+  cognome?: string | null;
+  nome?: string | null;
+  sesso?: string | null;
+  data_nascita?: string | null;
+  comune_nascita?: string | null;
+  provincia_nascita?: string | null;
+  codice_catastale_nascita?: string | null;
 }
 

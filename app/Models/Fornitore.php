@@ -84,6 +84,15 @@ class Fornitore extends Model
         'forfetario_riferimento',
         'provvigioni_base_ridotta',
         'provvigioni_dichiarazione_il',
+
+        // --- DATI DEL PERCIPIENTE PERSONA FISICA PER LA CU (fiscale, 2026-10) ---
+        'cognome',
+        'nome',
+        'sesso',
+        'data_nascita',
+        'comune_nascita',
+        'provincia_nascita',
+        'codice_catastale_nascita',
     ];
 
     /**
@@ -107,6 +116,7 @@ class Fornitore extends Model
         'forfetario_dichiarato_il'      => 'date',
         'provvigioni_base_ridotta'      => 'boolean',
         'provvigioni_dichiarazione_il'  => 'date',
+        'data_nascita'                  => 'date',
     ];
 
     /**
