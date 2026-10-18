@@ -358,7 +358,10 @@ class PagamentoFornitoreService
                     isset($data['tipo_detrazione'])
                         ? TipoDetrazione::from($data['tipo_detrazione'])
                         : null,
-                    $data['beneficiari_detrazione'] ?? []
+                    $data['beneficiari_detrazione'] ?? [],
+                    // Chi dispone il pagamento: l'amministratore che lo registra, se ha
+                    // un'anagrafica con codice fiscale.
+                    Auth::user()?->anagrafica?->codice_fiscale,
                 );
 
                 $pagamento = PagamentoFornitore::create([
@@ -1008,13 +1011,20 @@ class PagamentoFornitoreService
     /**
      * Genera la causale del bonifico.
      * Standard: "Pagamento {numero} del {data}"
-     * Parlante (art. 16-bis TUIR): include normativa, CF beneficiari, P.IVA fornitore.
+     * Parlante (detrazioni su parti comuni): riferimento normativo, CF del CONDOMINIO, CF di chi
+     * dispone il pagamento se noto, P.IVA (o CF) del fornitore — vedi
+     * `TipoDetrazione::generaCausalePartiComuni()`.
+     *
+     * Nota: con il bonifico parlante la banca trattiene l'**11%** (art. 25 DL 78/2010, aliquota
+     * in vigore dal 01/03/2024) sull'importo **al netto dell'IVA**; il condominio non applica la
+     * propria ritenuta. Il commento qui diceva ancora «8%, sul lordo».
      */
     public function generaCausaleBonifico(
         FatturaPassiva $fattura,
         bool $parlante = false,
         ?TipoDetrazione $tipoDetrazione = null,
-        array $beneficiari = []
+        array $beneficiari = [],
+        ?string $cfOrdinante = null,
     ): string {
         $base = sprintf(
             'Pagamento %s del %s',
@@ -1026,31 +1036,29 @@ class PagamentoFornitoreService
             return $base;
         }
 
-        // Bonifico Parlante: causale fiscalmente valida per detrazioni condòmini.
-        // La banca trattiene automaticamente 8% A.d.E. (ritenuta diversa dalla ritenuta
-        // d'acconto — si applica sull'importo lordo, netto = lordo × 0.92).
-        $cfs = collect($beneficiari)->pluck('codice_fiscale')->filter()->implode(', ');
-        $piva = $fattura->fornitore?->partita_iva ?? '';
-        $normativa = $tipoDetrazione->riferimentoNormativo();
+        $fornitore = $fattura->fornitore;
+        $cfCondominio = $fattura->condominio?->codice_fiscale;
 
-        $causale = sprintf(
-            'Bonifico %s - %s - Benef. CF: %s - P.IVA: %s - %s',
-            $tipoDetrazione->label(),
-            $normativa,
-            $cfs,
-            $piva,
-            $base
+        $causale = $tipoDetrazione->generaCausalePartiComuni(
+            cfCondominio: $cfCondominio,
+            cfOrdinante: $cfOrdinante,
+            idFiscaleFornitore: $fornitore?->partita_iva ?: $fornitore?->codice_fiscale,
+            riferimentoFattura: sprintf(
+                'Ft %s del %s',
+                $fattura->numero_documento ?? "#{$fattura->id}",
+                $fattura->data_documento?->format('d/m/Y') ?? now()->format('d/m/Y')
+            ),
+            cfBeneficiariRipiego: collect($beneficiari)->pluck('codice_fiscale')->filter()->values()->all(),
         );
 
-        // Le causali bancarie hanno un limite ~140 caratteri.
-        // Se supera, tronca e avvisa: l'admin dovrà allegare distinta PDF separata.
-        if (mb_strlen($causale) > 140) {
-            Log::warning("Causale Bonifico Parlante troncata per fattura {$fattura->id}.", [
-                'lunghezza_originale' => mb_strlen($causale),
-                'causale_troncata' => mb_substr($causale, 0, 137).'...',
+        // Nessun troncamento: un dato obbligatorio tagliato fa perdere la detrazione. Se la causale
+        // supera il campo del bonifico SEPA lo si registra, e la si accorcia a mano in banca.
+        if (mb_strlen($causale) > TipoDetrazione::LIMITE_SEPA || blank($cfCondominio)) {
+            Log::warning("Causale del bonifico parlante da verificare per la fattura {$fattura->id}.", [
+                'lunghezza' => mb_strlen($causale),
+                'cf_condominio_mancante' => blank($cfCondominio),
+                'causale' => $causale,
             ]);
-
-            return mb_substr($causale, 0, 137).'...';
         }
 
         return $causale;

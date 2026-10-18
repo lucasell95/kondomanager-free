@@ -74,9 +74,74 @@ enum TipoDetrazione: string
         };
     }
 
+    /** Lunghezza del campo «informazioni di rimessa» non strutturate di un bonifico SEPA. */
+    public const LIMITE_SEPA = 140;
+
+    /**
+     * La causale del bonifico parlante per lavori sulle **parti comuni** pagati dal condominio.
+     *
+     * Cosa deve risultare dal bonifico (guida AdE alle agevolazioni per ristrutturazioni, come
+     * riportata dalle fonti citate nel report fiscale; il sito AdE non era raggiungibile):
+     *  - la causale con il **riferimento normativo** della detrazione;
+     *  - il **codice fiscale del condominio**, beneficiario della detrazione per le parti comuni;
+     *  - il codice fiscale dell'**amministratore** o del condòmino che dispone il pagamento, quando
+     *    lo si conosce (indicato da fonti secondarie concordi; qui facoltativo);
+     *  - la **partita IVA** o, in mancanza, il **codice fiscale** del fornitore.
+     * Numero e data della fattura sono utili ma non obbligatori.
+     *
+     * ⚠️ **Mai troncare un dato obbligatorio.** La versione precedente tagliava a 137 caratteri con
+     * «...», e con sei codici fiscali dei condòmini la partita IVA del fornitore — obbligatoria —
+     * finiva quasi sempre fuori. Qui si sacrifica solo ciò che è facoltativo (il riferimento alla
+     * fattura); se i dati obbligatori da soli superano i 140 caratteri del bonifico SEPA, la causale
+     * resta intera e il chiamante lo segnala: meglio un campo da accorciare a mano che una
+     * detrazione persa.
+     */
+    public function generaCausalePartiComuni(
+        ?string $cfCondominio,
+        ?string $cfOrdinante,
+        ?string $idFiscaleFornitore,
+        ?string $riferimentoFattura = null,
+        array $cfBeneficiariRipiego = [],
+    ): string {
+        $parti = ['Detrazione '.$this->riferimentoNormativo()];
+
+        if (filled($cfCondominio)) {
+            $parti[] = 'CF cond. '.strtoupper(trim($cfCondominio));
+        } elseif ($cfBeneficiariRipiego !== []) {
+            // Condominio senza codice fiscale (condominio minimo che non l'ha chiesto, circ. 7/E/2018):
+            // si ripiega sui codici fiscali dei condòmini che detraggono, come faceva la versione 1.9.
+            $parti[] = 'CF benef. '.implode(' ', array_map('strtoupper', $cfBeneficiariRipiego));
+        } else {
+            $parti[] = 'CF cond. DA INDICARE';
+        }
+
+        if (filled($cfOrdinante)) {
+            $parti[] = 'CF amm. '.strtoupper(trim($cfOrdinante));
+        }
+
+        $parti[] = filled($idFiscaleFornitore)
+            ? 'P.IVA forn. '.strtoupper(trim($idFiscaleFornitore))
+            : 'P.IVA forn. DA INDICARE';
+
+        $obbligatoria = implode(' - ', $parti);
+
+        if (filled($riferimentoFattura)) {
+            $completa = $obbligatoria.' - '.$riferimentoFattura;
+
+            if (mb_strlen($completa) <= self::LIMITE_SEPA) {
+                return $completa;
+            }
+        }
+
+        return $obbligatoria;
+    }
+
     /**
      * Genera la causale completa per il bonifico parlante.
      * Formato A.d.E.: tipo + riferimento normativo + CF beneficiari + P.IVA fornitore + FT.
+     *
+     * @deprecated Non usata dal programma: mette i codici fiscali dei condòmini, mentre per le
+     *             parti comuni serve quello del condominio. Usa `generaCausalePartiComuni()`.
      *
      * @param  array  $cfBeneficiari   Lista di codici fiscali condòmini beneficiari
      * @param  string $partitaIvaFornitore
