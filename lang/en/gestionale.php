@@ -2110,6 +2110,23 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'vista' => [
+            'label' => 'Movements view',
+            'aggregata' => 'Aggregated',
+            'unita' => 'By unit',
+            'aggregata_help' => 'One row per movement: the units of the same installment are summed, a receipt is a single row.',
+            'unita_help' => 'One row per real estate unit, as recorded in the accounts.',
+            'units' => 'Units',
+            'rows' => ':n accounting rows',
+            'print_label_aggregata' => 'aggregated view by movement',
+            'print_label_unita' => 'view by real estate unit',
+        ],
+        'print_menu' => [
+            'aggregata' => 'Account statement',
+            'aggregata_help' => 'One row per movement (aggregated)',
+            'unita' => 'Account statement by unit',
+            'unita_help' => 'One row per real estate unit',
+        ],
         'head_title_prefix' => 'ST',
         'breadcrumbs' => [
             'management' => 'Management',

@@ -2112,6 +2112,23 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'vista' => [
+            'label' => 'Vista de los movimientos',
+            'aggregata' => 'Agregada',
+            'unita' => 'Por unidad',
+            'aggregata_help' => 'Una fila por movimiento: las unidades de la misma cuota se suman, un cobro es una sola fila.',
+            'unita_help' => 'Una fila por cada unidad inmobiliaria, tal como se registró en la contabilidad.',
+            'units' => 'Unidades',
+            'rows' => ':n filas contables',
+            'print_label_aggregata' => 'vista agregada por movimiento',
+            'print_label_unita' => 'vista por unidad inmobiliaria',
+        ],
+        'print_menu' => [
+            'aggregata' => 'Extracto de cuenta',
+            'aggregata_help' => 'Una fila por movimiento (agregado)',
+            'unita' => 'Extracto de cuenta por unidad',
+            'unita_help' => 'Una fila por unidad inmobiliaria',
+        ],
         'head_title_prefix' => 'ST',
         'breadcrumbs' => [
             'management' => 'Management',

@@ -2465,6 +2465,23 @@ return [
         ],
     ],
     'estratto_conto' => [
+        'vista' => [
+            'label' => 'Vista dos movimentos',
+            'aggregata' => 'Agregada',
+            'unita' => 'Por fração',
+            'aggregata_help' => 'Uma linha por movimento: as frações da mesma prestação são somadas, um recebimento é uma só linha.',
+            'unita_help' => 'Uma linha por cada fração, tal como registada na contabilidade.',
+            'units' => 'Frações',
+            'rows' => ':n linhas contabilísticas',
+            'print_label_aggregata' => 'vista agregada por movimento',
+            'print_label_unita' => 'vista por fração',
+        ],
+        'print_menu' => [
+            'aggregata' => 'Extrato de conta',
+            'aggregata_help' => 'Uma linha por movimento (agregado)',
+            'unita' => 'Extrato de conta por fração',
+            'unita_help' => 'Uma linha por fração',
+        ],
         'head_title_prefix' => 'Extrato',
         'breadcrumbs' => [
             'management' => 'Gestão',
