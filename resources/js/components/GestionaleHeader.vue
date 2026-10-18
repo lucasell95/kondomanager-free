@@ -27,8 +27,9 @@ import {
     Table2, 
     HandCoins, 
     Wallet, 
-    ChevronRight, 
-    ArrowUpDown
+    ChevronRight,
+    ArrowUpDown,
+    FileCheck2
 } from 'lucide-vue-next';
 import type { Building } from '@/types/buildings';
 import type { Esercizio } from '@/types/gestionale/esercizi';
@@ -121,6 +122,12 @@ const mainNavItems: NavItem[] = [
         title: 'Piani rate',
         href: generatePath('gestionale/:condominio/esercizi/:esercizio/piani-rate', { condominio: condominio.value.id, esercizio: esercizio.value?.id }),
         icon: Wallet,
+    },
+    {
+        type: 'link',
+        title: 'Rendiconto',
+        href: generatePath('gestionale/:condominio/esercizi/:esercizio/rendiconto', { condominio: condominio.value.id, esercizio: esercizio.value?.id as number }),
+        icon: FileCheck2,
     },
     {
         type: 'link',
