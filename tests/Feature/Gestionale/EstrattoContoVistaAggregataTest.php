@@ -61,6 +61,8 @@ function ecAggScenario(): object
     ]);
     // L'anagrafica è legata al condominio dalla tabella pivot: senza, la rotta annidata risponde 404.
     $condominio->anagrafiche()->attach($anagrafica->id);
+    // L'anagrafica è legata al condominio dalla tabella pivot: senza, la rotta annidata risponde 404.
+    $condominio->anagrafiche()->attach($anagrafica->id);
 
     $immobili = [];
     foreach (['Appartamento' => '1', 'Cantina' => 'C1', 'Garage' => 'G1'] as $nome => $interno) {
