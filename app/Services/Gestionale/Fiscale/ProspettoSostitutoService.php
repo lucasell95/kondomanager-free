@@ -573,7 +573,8 @@ class ProspettoSostitutoService
                     '1' => $righeP[0]['causale'],
                     '4' => $compenso,
                     '5' => 0,
-                    '6' => array_key_first($nonSoggette),
+                    // Le chiavi numeriche degli array PHP diventano interi: il codice resta una stringa.
+                    '6' => array_key_first($nonSoggette) !== null ? (string) array_key_first($nonSoggette) : null,
                     '7' => $totNonSogg,
                     '8' => $compenso - $totNonSogg,
                     '9' => $imposta ? 0 : $ritenute,
