@@ -11,6 +11,7 @@ use App\Models\Gestionale\DelegaF24;
 use App\Models\Gestionale\PagamentoFornitore;
 use App\Models\Gestionale\RigaF24;
 use App\Services\Gestionale\PlafondRitenuteService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -126,20 +127,103 @@ class GeneraDelegheF24Action
         // Solo le deleghe ANCORA IN PIEDI bloccano un pagamento. Dopo uno storno le
         // ritenute tornano da versare, e devono rientrare nel calcolo: escluderle
         // guardando solo la pivot le farebbe sparire per sempre dal plafond.
+        return $this->ritenuteNonCoperte($condominio, [
+            StatoDelegaF24::STORNATA,
+            StatoDelegaF24::ANNULLATA,
+        ]);
+    }
+
+    /**
+     * La scadenza di versamento di ogni ritenuta non ancora versata, pagamento per pagamento,
+     * **esattamente come la calcola lo scadenzario F24**.
+     *
+     * Serve al promemoria dell'Inbox (`PromemoriaRitenuteService`), che prima calcolava per
+     * conto suo «il 16 del mese successivo» a ogni pagamento e ignorava le soglie: per due
+     * ritenute 4% da 6,00 € di luglio diceva di versare il 17/08 con due F24, mentre lo
+     * scadenziario proponeva una sola delega da 12,00 € entro il 16/12 (collaudo 1, E1). Qui
+     * non c'è una seconda regola: si usa lo stesso `PlafondRitenuteService` sullo stesso
+     * insieme di ritenute che userebbe «Aggiorna scadenze».
+     *
+     * - Ritenute in una delega **confermata**: righe congelate, vale la sua scadenza.
+     * - Tutte le altre non versate (in bozza o non ancora in nessuna delega): raggruppate come
+     *   le raggrupperebbe il ricalcolo, che rifà da zero le bozze. Un pagamento nuovo che fa
+     *   superare la soglia anticipa quindi anche la scadenza di quelli precedenti.
+     * - Ritenute in una delega **versata**: non compaiono, non c'è più niente da versare.
+     *
+     * Non scrive niente.
+     *
+     * @return array<int,array{scadenza: CarbonImmutable, codice_tributo: string, importo: int, motivo: string, delega_id: int|null}>
+     */
+    public function scadenzePerPagamento(Condominio $condominio): array
+    {
+        $esito = [];
+
+        $confermate = DelegaF24::where('condominio_id', $condominio->id)
+            ->where('stato', StatoDelegaF24::CONFERMATA->value)
+            ->with('righe.pagamenti')
+            ->get();
+
+        foreach ($confermate as $delega) {
+            foreach ($delega->righe as $riga) {
+                foreach ($riga->pagamenti as $pagamento) {
+                    $esito[$pagamento->id] = [
+                        'scadenza' => CarbonImmutable::parse($delega->data_scadenza)->startOfDay(),
+                        'codice_tributo' => (string) $riga->codice_tributo,
+                        'importo' => (int) $pagamento->pivot->importo,
+                        'motivo' => (string) $delega->motivo_codice,
+                        'delega_id' => $delega->id,
+                    ];
+                }
+            }
+        }
+
+        // Le bozze NON bloccano: il ricalcolo le cancella e le rifà, quindi le loro ritenute
+        // vanno contate insieme a quelle ancora scoperte, come farà lui.
+        $ritenute = $this->ritenuteNonCoperte($condominio, [
+            StatoDelegaF24::STORNATA,
+            StatoDelegaF24::ANNULLATA,
+            StatoDelegaF24::BOZZA,
+        ]);
+
+        foreach ($this->plafond->raggruppaPerScadenza($ritenute->all()) as $gruppo) {
+            foreach ($gruppo['ritenute'] as $ritenuta) {
+                $pagamento = $ritenuta['pagamento'];
+                $tipo = $ritenuta['tipo_ritenuta'] instanceof TipoRitenuta
+                    ? $ritenuta['tipo_ritenuta']
+                    : TipoRitenuta::from($ritenuta['tipo_ritenuta']);
+
+                $esito[$pagamento->id] = [
+                    'scadenza' => $gruppo['scadenza'],
+                    'codice_tributo' => $tipo->codiceTributo($this->naturaPercipiente($pagamento)),
+                    'importo' => (int) $ritenuta['importo'],
+                    'motivo' => (string) $gruppo['motivo'],
+                    'delega_id' => null,
+                ];
+            }
+        }
+
+        return $esito;
+    }
+
+    /**
+     * Le ritenute operate che non stanno in una delega in uno stato diverso da quelli indicati.
+     *
+     * @param  array<int,StatoDelegaF24>  $statiCheNonBloccano
+     * @return \Illuminate\Support\Collection<int,array<string,mixed>>
+     */
+    private function ritenuteNonCoperte(Condominio $condominio, array $statiCheNonBloccano): \Illuminate\Support\Collection
+    {
         $giaVersati = DB::table('riga_f24_pagamento')
             ->join('righe_f24', 'righe_f24.id', '=', 'riga_f24_pagamento.riga_f24_id')
             ->join('deleghe_f24', 'deleghe_f24.id', '=', 'righe_f24.delega_f24_id')
-            ->whereNotIn('deleghe_f24.stato', [
-                StatoDelegaF24::STORNATA->value,
-                StatoDelegaF24::ANNULLATA->value,
-            ])
+            ->whereNotIn('deleghe_f24.stato', array_map(fn (StatoDelegaF24 $s) => $s->value, $statiCheNonBloccano))
             ->pluck('riga_f24_pagamento.pagamento_fornitore_id')
             ->all();
 
         return PagamentoFornitore::query()
             ->with('fornitore')
             ->where('condominio_id', $condominio->id)
-            // Nessun filtro per esercizio: vedi il docblock. Resta il vincolo che il pagamento
+            // Nessun filtro per esercizio: vedi il docblock di ritenuteDaVersare(). Resta il vincolo che il pagamento
             // abbia una scrittura, come prima (il filtro per esercizio lo imponeva di sponda).
             ->whereHas('scrittura')
             ->where('importo_ritenuta', '>', 0)
