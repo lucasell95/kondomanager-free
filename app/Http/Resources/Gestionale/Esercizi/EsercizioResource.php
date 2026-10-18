@@ -24,6 +24,7 @@ class EsercizioResource extends JsonResource
             'data_inizio'       => $this->data_inizio,
             'data_fine'         => $this->data_fine,
             'stato'             => $this->stato,
+            'serie_protocollo'  => $this->serie_protocollo,
         ];
     
     }
