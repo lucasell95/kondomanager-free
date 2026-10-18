@@ -12,6 +12,10 @@ use Inertia\Testing\AssertableInertia as Assert;
 require_once __DIR__.'/AssembleeTestHelpers.php';
 
 beforeEach(function () {
+    // Le pagine d'errore (403/404) chiedono all'utente se ha l'accesso al pannello: il permesso
+    // deve esistere, come in un'installazione vera.
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'Accesso pannello amministratore', 'guard_name' => 'web']);
+
     $this->dati = assCondominio();
     $this->condominio = $this->dati['condominio'];
 
