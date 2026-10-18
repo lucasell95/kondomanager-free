@@ -1,0 +1,5 @@
+# Test che falliscono già sulla release ufficiale (non dipendono dalle modifiche del fork).
+# Una riga = parte del nome del test (classe > descrizione). Il CI li segnala come avviso, non come errore.
+# VerificaDocumentazione/FlussoDiLavoro leggono documentazione interna non presente nel repository pubblico.
+Tests\Feature\System\VerificaDocumentazioneCommandTest
+Tests\Feature\System\FlussoDiLavoroNonRestaIndietroTest
