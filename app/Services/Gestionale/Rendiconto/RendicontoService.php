@@ -79,7 +79,7 @@ class RendicontoService
         $modello = $this->nota->modello($rendiconto);
         $testo = $salvati?->nota_sintetica;
         $fatti = $this->nota->fatti($rendiconto);
-        $compilata = $this->nota->compila($testo ?? $modello, $fatti);
+        $compilata = $this->nota->compila($this->nota->aggiornaFrasiSuperate($testo ?? $modello), $fatti);
 
         return [
             'testo'      => $testo ?? $modello,

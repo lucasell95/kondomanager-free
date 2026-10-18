@@ -50,6 +50,7 @@ class NotaRendicontoService
         $add('cassa.entrate', $e($tot['entrate']), "Entrate di cassa dell'esercizio (giroconti interni inclusi)");
         $add('cassa.uscite', $e($tot['uscite']), "Uscite di cassa dell'esercizio (giroconti interni inclusi)");
         $add('cassa.finale', $e($tot['saldo_finale']), 'Saldo finale di cassa, banca e fondi');
+        $add('cassa.estratto_conto', $this->confrontoEstrattoConto($rendiconto), "Confronto del saldo con l'estratto conto bancario a fine esercizio");
 
         foreach ($rendiconto['consuntivo']['gestioni'] as $i => $g) {
             $n = 'g'.($i + 1);
@@ -102,7 +103,7 @@ class NotaRendicontoService
         Gli scostamenti principali rispetto al preventivo sono dovuti a: [da completare].
 
         SITUAZIONE FINANZIARIA
-        Il saldo di cassa, banca e fondi è passato da {{F:cassa.iniziale}} a inizio esercizio a {{F:cassa.finale}} a fine esercizio e coincide con l'estratto conto bancario alla stessa data.
+        Il saldo di cassa, banca e fondi è passato da {{F:cassa.iniziale}} a inizio esercizio a {{F:cassa.finale}} a fine esercizio. {{F:cassa.estratto_conto}}
 
         FONDI E RISERVE
         Il fondo speciale per i lavori straordinari (art. 1135 n. 4 c.c.) ammonta a {{F:fondi.speciale}}; il saldo complessivo dei fondi è {{F:fondi.totale}}.
@@ -122,6 +123,61 @@ class NotaRendicontoService
         FATTI DI RILIEVO DOPO LA CHIUSURA
         [Da completare, oppure: nessuno.]
         TXT;
+    }
+
+    /**
+     * La frase sul confronto con l'estratto conto, decisa dai numeri e non dal modello.
+     *
+     * Il modello diceva sempre «e coincide con l'estratto conto bancario alla stessa data»,
+     * anche quando l'estratto conto non era stato indicato e la verifica era in avviso
+     * (collaudo 1, E3): la nota affermava un controllo mai fatto. Ora: coincide solo se ogni
+     * conto bancario ha l'estratto conto e la differenza è zero; altrimenti la frase lo dice.
+     */
+    private function confrontoEstrattoConto(array $rendiconto): string
+    {
+        $alla = ! empty($rendiconto['esercizio']['data_fine'])
+            ? ' al '.\Illuminate\Support\Carbon::parse($rendiconto['esercizio']['data_fine'])->format('d/m/Y')
+            : ' a fine esercizio';
+        $banche = array_values(array_filter(
+            $rendiconto['riepilogo']['conti'] ?? [],
+            fn ($c) => ($c['tipo'] ?? null) === 'banca'
+        ));
+
+        if ($banche === []) {
+            return 'Non risultano conti bancari da confrontare con un estratto conto.';
+        }
+
+        $diversi = array_filter($banche, fn ($c) => $c['estratto_conto'] !== null && (int) ($c['differenza_estratto'] ?? 0) !== 0);
+        if ($diversi !== []) {
+            $dettaglio = implode('; ', array_map(
+                fn ($c) => $c['nome'].': differenza '.MoneyHelper::format((int) $c['differenza_estratto']),
+                $diversi
+            ));
+
+            return "Il saldo contabile NON coincide con l'estratto conto bancario{$alla} ({$dettaglio}): [spiegare la differenza].";
+        }
+
+        $senza = array_filter($banche, fn ($c) => $c['estratto_conto'] === null);
+        if ($senza !== []) {
+            return "[Da verificare con l'estratto conto bancario{$alla}: il saldo dell'estratto conto non è stato indicato per "
+                .implode(', ', array_map(fn ($c) => $c['nome'], $senza)).'.]';
+        }
+
+        return "Il saldo coincide con l'estratto conto bancario{$alla}.";
+    }
+
+    /**
+     * Una nota salvata prima della correzione E3 può contenere ancora la frase fissa del vecchio
+     * modello: la si sostituisce, solo per la stampa, con il segnaposto che dice come stanno
+     * davvero le cose. Il testo salvato non cambia.
+     */
+    public function aggiornaFrasiSuperate(string $testo): string
+    {
+        return str_replace(
+            " a fine esercizio e coincide con l'estratto conto bancario alla stessa data.",
+            ' a fine esercizio. {{F:cassa.estratto_conto}}',
+            $testo
+        );
     }
 
     /**
