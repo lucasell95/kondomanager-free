@@ -343,11 +343,23 @@ class ChiudiEsercizioAction
                         'coefficiente' => $legame->coefficiente,
                     ]);
 
-                    foreach (ContoTabellaRipartizione::where('conto_tabella_millesimale_id', $legame->id)->get() as $rip) {
+                    $ripartizioni = ContoTabellaRipartizione::where('conto_tabella_millesimale_id', $legame->id)
+                        ->get(['soggetto', 'percentuale'])
+                        ->map(fn ($r) => ['soggetto' => $r->soggetto, 'percentuale' => $r->percentuale])
+                        ->all();
+
+                    // Stessa regola di ogni altra porta che scrive ripartizioni: se l'origine non
+                    // somma a 100 (dati storici), non si copia l'errore nel nuovo esercizio ma si
+                    // ripiega su «proprietario 100», come FatturaPassivaService.
+                    if ($ripartizioni && array_sum(array_column($ripartizioni, 'percentuale')) != 100) {
+                        $ripartizioni = [['soggetto' => 'proprietario', 'percentuale' => 100]];
+                    }
+
+                    foreach ($ripartizioni as $rip) {
                         ContoTabellaRipartizione::create([
                             'conto_tabella_millesimale_id' => $nuovoLegame->id,
-                            'soggetto'                     => $rip->soggetto,
-                            'percentuale'                  => $rip->percentuale,
+                            'soggetto'                     => $rip['soggetto'],
+                            'percentuale'                  => $rip['percentuale'],
                         ]);
                     }
                 }

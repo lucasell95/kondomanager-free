@@ -288,7 +288,7 @@ test('chiusura: residui riportati una volta sola, estratto conto, quote e stato 
         ->and($nuovaOrd->nome)->toBe('Gestione ordinaria 2027/28')
         ->and(PianoConto::where('gestione_id', $nuovaOrd->id)->value('nome'))->toBe('Piano dei conti 2027/28')
         ->and($nuovo->gestioni()->where('gestioni.id', $s->tetto->id)->exists())->toBeTrue()
-        ->and($s->ordinaria->fresh()->attiva)->toBeFalse();
+        ->and((bool) $s->ordinaria->fresh()->attiva)->toBeFalse();
 
     // Saldi iniziali del nuovo esercizio.
     $saldi = Saldo::where('esercizio_id', $nuovo->id)->get();
@@ -453,12 +453,12 @@ test("annullamento: tutto torna com'era, e la chiusura si può rifare", function
     expect($s->vecchio->fresh()->stato)->toBe('aperto')
         ->and(Esercizio::find($nuovo->id))->toBeNull()
         ->and(Gestione::find($nuovaOrdId))->toBeNull()
-        ->and($s->ordinaria->fresh()->attiva)->toBeTrue()
+        ->and((bool) $s->ordinaria->fresh()->attiva)->toBeTrue()
         ->and($s->tetto->fresh()->esercizi()->count())->toBe(1)
         ->and($qRossi->fresh()->stato)->toBe('parzialmente_pagata')
         ->and($qRossi->fresh()->importo_pagato)->toBe(10000)
         ->and($qRossi->fresh()->riferimento_pagamento)->toBeNull()
-        ->and($s->saldoVerdi->fresh()->is_applicato)->toBeFalse()
+        ->and((bool) $s->saldoVerdi->fresh()->is_applicato)->toBeFalse()
         ->and($s->saldoVerdi->fresh()->chiusura_esercizio_id)->toBeNull()
         ->and(ScritturaContabile::withTrashed()->where('tipo_movimento', 'chiusura')->count())->toBe(0)
         ->and(chEsConto($s, $s->vecchio, 'crediti_condomini'))->toBe($crediti1101Prima)
