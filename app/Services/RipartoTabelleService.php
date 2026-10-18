@@ -196,9 +196,12 @@ class RipartoTabelleService
         // ─── 4. Somma importi totali da rate_quote già emesse ─────────────────
         // Le rate_quote restano la fonte di verità per il totale di ogni soggetto:
         // le celle per-conto vengono riallineate a questo totale in caso di residuo.
+        //
+        // `immobile.anagrafiche` serve al ruolo e alla quota del soggetto più sotto: senza, ogni
+        // unità la caricava con una query sua (N+1, 18 query su un condominio di 18 unità).
         $pianoRate->load([
             'rate.rateQuote.anagrafica',
-            'rate.rateQuote.immobile',
+            'rate.rateQuote.immobile.anagrafiche',
         ]);
 
         // Aggregazione: [anagrafica_id][immobile_id] = importo_totale_cents (su tutte le rate)

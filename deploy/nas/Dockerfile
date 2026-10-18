@@ -48,6 +48,11 @@ RUN rm -rf Dockerfile* docker deploy tests node_modules .git .github \
     && rm -f .env && ln -s /config/.env .env \
     && chown -R www-data:www-data /var/www /opt/storage-template
 
+# Cache dei font di mPDF già pronta nell'immagine: altrimenti la prima stampa dopo ogni
+# aggiornamento (il container viene ricreato) la ricostruisce. Stesso contenuto, PDF identici.
+COPY deploy/nas/conf/mpdf-warmup.php /usr/local/share/kondomanager/mpdf-warmup.php
+RUN su -s /bin/sh www-data -c "php /usr/local/share/kondomanager/mpdf-warmup.php /var/www/vendor/autoload.php"
+
 EXPOSE 80
 ENV TZ=Europe/Rome
 ENTRYPOINT ["/usr/local/bin/kondo-entrypoint"]
