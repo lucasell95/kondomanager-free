@@ -15,9 +15,12 @@ use Illuminate\Support\Collection;
  *
  * Questo service ricompone le righe in movimenti:
  *
- * - **addebiti** (dare): una riga per scrittura + rata. «Emissione rata n.1» è una riga con la
- *   somma di tutte le unità, lo stato della rata riassunto, il recupero di debito pregresso
- *   sommato e l'elenco delle unità coinvolte;
+ * - **emissioni di rate**: una riga per **scadenza**. «Emissione rata n.1» è una riga con la
+ *   somma di tutte le unità **e di tutte le gestioni** che scadono quel giorno (ordinaria e
+ *   straordinarie insieme, come nella rata che il condòmino paga), lo stato della rata riassunto,
+ *   il recupero di debito pregresso sommato, il dettaglio per gestione e l'elenco delle unità.
+ *   Le gestioni restano separate in contabilità: si uniscono solo nella vista;
+ * - **altri addebiti** (storni, prelievi da credito): una riga per scrittura + rata;
  * - **pagamenti** (avere): una riga per scrittura. Un incasso è una riga col totale incassato,
  *   anche quando copre più rate: le rate coperte restano elencate nel dettaglio.
  *
@@ -80,6 +83,12 @@ class EstrattoContoAggregatoService
     private function chiave(array $riga): string
     {
         $tipoRiga = $riga['tipo_riga'] ?? ($riga['dare'] > 0 ? 'dare' : 'avere');
+
+        // Le emissioni si uniscono per scadenza, anche fra gestioni e scritture diverse.
+        if ($tipoRiga === 'dare' && ($riga['breakdown']['type'] ?? null) === 'emissione' && ! empty($riga['rata_scadenza'])) {
+            return 'emissione|' . $riga['rata_scadenza'];
+        }
+
         $rata = $tipoRiga === 'dare' ? ($riga['rata_id'] ?? '-') : '*';
 
         return ($riga['scrittura_id'] ?? 'r' . $riga['id']) . '|' . $tipoRiga . '|' . $rata;
@@ -131,7 +140,20 @@ class EstrattoContoAggregatoService
 
         $note = array_values(array_unique(array_filter(array_column($righe, 'note'))));
 
-        return array_merge($prima, [
+        // Più scritture nello stesso gruppo = emissioni di gestioni diverse con la stessa scadenza.
+        $unite = [];
+        if (count(array_unique(array_column($righe, 'scrittura_id'))) > 1) {
+            $gestioni = array_values(array_unique(array_filter(array_column($righe, 'gestione'))));
+            $protocolli = array_values(array_unique(array_filter(array_column($righe, 'protocollo'))));
+            $unite = [
+                'descrizione' => 'Emissione ' . ($prima['rata_label'] ?? 'rata'),
+                'gestione'    => count($gestioni) > 1 ? count($gestioni) . ' gestioni' : ($gestioni[0] ?? null),
+                'gestioni'    => $gestioni,
+                'protocollo'  => implode(' · ', $protocolli),
+            ];
+        }
+
+        return array_merge($prima, $unite, [
             'id'               => 'agg-' . $chiave,
             'note'             => $note === [] ? null : implode(' · ', $note),
             'dettagli'         => $dettagli,
@@ -165,11 +187,34 @@ class EstrattoContoAggregatoService
             $etichetta .= ' (Sconto da credito)';
         }
 
-        $dettagli = [[
-            'type'   => 'rata',
-            'text'   => $etichetta,
-            'status' => $this->statoRiassunto(array_column($righe, 'stato_rata')),
-        ]];
+        $perScrittura = [];
+        foreach ($righe as $r) {
+            $perScrittura[$r['scrittura_id'] ?? 'r' . $r['id']][] = $r;
+        }
+
+        if (count($perScrittura) > 1) {
+            // Una riga per gestione: quanto pesa nella rata e a che punto è.
+            $dettagli = [];
+            foreach ($perScrittura as $gruppo) {
+                $su = array_sum(array_map(fn ($r) => (int) ($r['saldo_usato'] ?? 0), $gruppo));
+                $numero = $gruppo[0]['rata_numero'] ?? null;
+                $testo = ($gruppo[0]['gestione'] ?? 'Gestione')
+                    . ($numero ? " · rata n.{$numero}" : '')
+                    . ': ' . MoneyHelper::format(array_sum(array_column($gruppo, 'dare')))
+                    . ($su > 0 ? ' + recupero debito' : ($su < 0 ? ' (scontata da credito)' : ''));
+                $dettagli[] = [
+                    'type'   => 'rata',
+                    'text'   => $testo,
+                    'status' => $this->statoRiassunto(array_column($gruppo, 'stato_rata')),
+                ];
+            }
+        } else {
+            $dettagli = [[
+                'type'   => 'rata',
+                'text'   => $etichetta,
+                'status' => $this->statoRiassunto(array_column($righe, 'stato_rata')),
+            ]];
+        }
 
         if ($saldoUsato > 0) {
             $dettagli[] = ['type' => 'info', 'text' => 'Include recupero debito pregresso: ' . MoneyHelper::format($saldoUsato), 'status' => null];

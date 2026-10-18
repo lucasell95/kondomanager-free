@@ -209,7 +209,12 @@ class EstrattoContoAnagraficaController extends Controller
             $quota            = $riga->quotaRecord;
             
             $waterfallStart = $runningBalance;
-            $tipoMovimento = $riga->scrittura->tipo_movimento ?? 'generico';
+            // `tipo_movimento` è un enum (TipoMovimentoContabile): i confronti qui sotto sono su
+            // stringhe, quindi serve il valore. Confrontando l'enum con una stringa ogni test era
+            // falso: icone sempre generiche, e storni e prelievi da credito in dare trattati come
+            // emissioni (sommavano la quota pura invece dell'importo contabile).
+            $tm = $riga->scrittura->tipo_movimento ?? null;
+            $tipoMovimento = $tm instanceof \BackedEnum ? $tm->value : ($tm ?: 'generico');
             
             // CALCOLO DARE E AVERE PROGRESSIVI (Motore Partita Doppia)
             if ($riga->tipo_riga === 'dare') {
@@ -392,6 +397,8 @@ class EstrattoContoAnagraficaController extends Controller
                 'tipo_riga'        => $riga->tipo_riga,
                 'rata_id'          => $riga->rata?->id,
                 'rata_label'       => $rataLabel,
+                'rata_numero'      => $riga->rata?->numero_rata,
+                'rata_scadenza'    => $riga->rata?->data_scadenza?->format('Y-m-d'),
                 'stato_rata'       => $statoRata,
                 'immobile_id'      => $riga->immobile_id,
                 'immobile_label'   => $riga->immobile
