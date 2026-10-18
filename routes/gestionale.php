@@ -469,4 +469,7 @@ Route::prefix('/gestionale/{condominio}')
     require __DIR__.'/gestionale_rendiconto.php';
 
     require __DIR__.'/gestionale_banca.php';
+
+    // --- ASSEMBLEE (modulo assemblee) ---
+    require __DIR__.'/gestionale_assemblee.php';
 });

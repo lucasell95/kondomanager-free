@@ -87,4 +87,7 @@ Route::prefix('user')->as('user.')->middleware(['auth', 'verified'])->group(func
     Route::put('settings/notifications', [NotificationPreferenceController::class, 'update'])
         ->name('settings.notifications.update');
 
+    // Assemblee: sola lettura per il condòmino (modulo assemblee)
+    require __DIR__.'/user_assemblee.php';
+
 });

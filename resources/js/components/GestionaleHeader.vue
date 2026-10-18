@@ -29,7 +29,8 @@ import {
     Wallet, 
     ChevronRight,
     ArrowUpDown,
-    FileCheck2
+    FileCheck2,
+    Gavel
 } from 'lucide-vue-next';
 import type { Building } from '@/types/buildings';
 import type { Esercizio } from '@/types/gestionale/esercizi';
@@ -134,6 +135,12 @@ const mainNavItems: NavItem[] = [
         title: 'Movimenti',
         href: generatePath('gestionale/:condominio/movimenti', { condominio: condominio.value.id }),
         icon: ArrowUpDown,
+    },
+    {
+        type: 'link',
+        title: 'Assemblee',
+        href: generatePath('gestionale/:condominio/assemblee', { condominio: condominio.value.id }),
+        icon: Gavel,
     }
 ]; 
 
