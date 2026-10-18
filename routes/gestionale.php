@@ -460,4 +460,6 @@ Route::prefix('/gestionale/{condominio}')
     // --- DETTAGLIO SCRITTURA CONTABILE (v1.9.1-beta.7) ---
     Route::get('/scritture/{scrittura}', [ScritturaContabileController::class, 'show'])
         ->name('scritture.show');
+
+    require __DIR__.'/gestionale_rendiconto.php';
 });
