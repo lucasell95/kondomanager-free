@@ -10,6 +10,7 @@ use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use App\Helpers\DateHelper;
 
 /**
  * Storna il versamento di una delega F24 già versata.
@@ -66,7 +67,7 @@ class StornaVersamentoF24Action
                 throw new \DomainException('La delega risulta versata ma non ha una scrittura collegata.');
             }
 
-            $data = $dataStorno ?? now()->toDateString();
+            $data = $dataStorno ?? DateHelper::oggiUtente();
             $totale = (int) $delega->totale_debito;
 
             $storno = ScritturaContabile::create([

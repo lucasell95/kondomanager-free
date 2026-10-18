@@ -168,7 +168,7 @@ class SaldoEsercizioService
         return sprintf(
             "Saldo Netto %s processato il %s",
             $importoFormattato,
-            now()->format('d/m/Y H:i')
+            \App\Helpers\DateHelper::adessoUtente()->format('d/m/Y H:i')
         );
     }
 }

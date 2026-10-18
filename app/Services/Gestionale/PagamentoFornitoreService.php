@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use App\Helpers\DateHelper;
 
 /**
  * Servizio per la gestione dei pagamenti ai fornitori (v1.9.1).
@@ -838,8 +839,8 @@ class PagamentoFornitoreService
                 'condominio_id' => $scritturaOriginale->condominio_id,
                 'gestione_id' => $scritturaOriginale->gestione_id,
                 'esercizio_id' => $esercizioTarget->id,
-                'data_registrazione' => now()->toDateString(),
-                'data_competenza' => now()->toDateString(),
+                'data_registrazione' => DateHelper::oggiUtente(),
+                'data_competenza' => DateHelper::oggiUtente(),
                 'causale' => mb_substr($causaleStorno, 0, 255),
                 'tipo_movimento' => TipoMovimentoContabile::STORNO_PAGAMENTO_FORNITORE,
                 'stato' => 'registrata',
@@ -906,7 +907,7 @@ class PagamentoFornitoreService
                 'importo_netto' => $pagamento->importo_netto,
                 'importo_commissione' => $pagamento->importo_commissione,
                 'metodo_pagamento' => $pagamento->metodo_pagamento,
-                'data_pagamento' => now()->toDateString(),
+                'data_pagamento' => DateHelper::oggiUtente(),
                 'iban_beneficiario' => $pagamento->iban_beneficiario,
                 'causale_bonifico' => mb_substr(
                     'Storno: '.($pagamento->causale_bonifico ?? ''),

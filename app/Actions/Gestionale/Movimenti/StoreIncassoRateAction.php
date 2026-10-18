@@ -17,6 +17,7 @@ use App\Helpers\MoneyHelper;
 use App\Models\Esercizio;
 use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 class StoreIncassoRateAction
 {
@@ -180,7 +181,7 @@ class StoreIncassoRateAction
                 'condominio_id'      => $condominio->id,
                 'esercizio_id'       => $esercizio->id,
                 'gestione_id'        => $gestioneId,
-                'data_registrazione' => now(),
+                'data_registrazione' => DateHelper::oggiUtente(),
                 'data_competenza'    => $validated['data_pagamento'],
                 'causale'            => $validated['descrizione'] ?: 'Incasso rate',
                 'tipo_movimento'     => 'incasso_rata',
@@ -334,7 +335,7 @@ class StoreIncassoRateAction
                     'esercizio_id'       => $esercizio->id,
                     'gestione_id'        => $gestioneId,
                     'scrittura_padre_id' => $scritturaIncasso->id, // 🟢 IL LINK DI SANGUE!
-                    'data_registrazione' => now(),
+                    'data_registrazione' => DateHelper::oggiUtente(),
                     'data_competenza'    => $validated['data_pagamento'],
                     'causale'            => 'Compensazione credito pregresso - ' . ($validated['descrizione'] ?: 'Incasso rate'),
                     'tipo_movimento'     => 'storno_credito',

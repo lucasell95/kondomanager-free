@@ -12,7 +12,7 @@
 
     <p style="font-size: 9pt; color: #555; margin: 0 0 6mm;">
         {{ $lotto->condominio?->nome ?? 'Condominio non determinato' }}
-        @if($lotto->completato_at) &middot; {{ $lotto->completato_at->format('d/m/Y H:i') }} @endif
+        @if($lotto->completato_at) &middot; {{ \App\Helpers\DateHelper::inFusoUtente($lotto->completato_at)->format('d/m/Y H:i') }} @endif
         &middot; {{ $creati }} record creati
         <br>
         Riferimento lotto <span style="font-family: monospace;">{{ $lotto->uuid }}</span>

@@ -19,6 +19,7 @@ use App\Traits\PaginaElenco;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Helpers\DateHelper;
 
 /**
  * Controller per la visualizzazione del Libro Giornale — elenco e dettaglio
@@ -283,7 +284,7 @@ class ScritturaContabileController extends Controller
                 'tipo_movimento_label' => $scrittura->tipo_movimento?->label(),
                 'stato'                => $scrittura->stato,
                 'note'                 => $scrittura->note,
-                'created_at'           => $scrittura->created_at?->format('d/m/Y H:i'),
+                'created_at'           => DateHelper::inFusoUtente($scrittura->created_at)?->format('d/m/Y H:i'),
 
                 // Contesto
                 'esercizio' => $scrittura->esercizio ? [
@@ -331,7 +332,7 @@ class ScritturaContabileController extends Controller
                     'id'      => $f->id,
                     'causale' => $f->causale,
                     'tipo_movimento_label' => $f->tipo_movimento?->label(),
-                    'created_at' => $f->created_at?->format('d/m/Y H:i'),
+                    'created_at' => DateHelper::inFusoUtente($f->created_at)?->format('d/m/Y H:i'),
                 ]),
 
                 // Pagamento fornitore collegato (1:1)

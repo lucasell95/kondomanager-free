@@ -12,6 +12,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Condominio;
 use App\Models\Gestionale\DelegaF24;
 use App\Services\Gestionale\ModelloF24Service;
+use App\Services\Gestionale\PromemoriaRitenuteService;
 use App\Traits\HandleFlashMessages;
 use App\Traits\HasCondomini;
 use App\Traits\HasEsercizio;
@@ -61,6 +62,7 @@ class DelegaF24Controller extends Controller
         private GeneraDelegheF24Action $genera,
         private ConfermaVersamentoF24Action $conferma,
         private StornaVersamentoF24Action $storna,
+        private PromemoriaRitenuteService $promemoria,
     ) {}
 
     public function index(Request $request, Condominio $condominio): Response
@@ -223,6 +225,9 @@ class DelegaF24Controller extends Controller
         try {
             $deleghe = $this->genera->esegui($condominio, $esercizio->id);
 
+            // I promemoria dell'Inbox seguono lo scadenzario appena ricalcolato.
+            $this->promemoria->sincronizza($condominio);
+
             if ($deleghe->isEmpty()) {
                 return back()->with($this->flashSuccess(
                     'Nessuna ritenuta da versare: tutte quelle operate risultano già versate.'
@@ -271,6 +276,9 @@ class DelegaF24Controller extends Controller
                 $dati['note'] ?? null,
             );
 
+            // Le ritenute versate escono dall'Inbox.
+            $this->promemoria->sincronizza($condominio);
+
             return back()->with($this->flashSuccess(
                 'Versamento registrato: il debito verso l\'Erario è stato estinto.'
             ));
@@ -296,6 +304,9 @@ class DelegaF24Controller extends Controller
 
         try {
             $this->storna->esegui($delega, $dati['motivo'], $dati['data_storno'] ?? null);
+
+            // Le ritenute tornano da versare: i loro promemoria si riaprono.
+            $this->promemoria->sincronizza($condominio, $this->pagamentiDellaDelega($delega));
 
             return back()->with($this->flashSuccess(
                 'Versamento stornato: le ritenute tornano da versare e rientrano nel prossimo calcolo.'
@@ -329,10 +340,23 @@ class DelegaF24Controller extends Controller
             'motivo_annullamento' => $dati['motivo'],
         ]);
 
+        $this->promemoria->sincronizza($condominio, $this->pagamentiDellaDelega($delega));
+
         return back()->with($this->flashSuccess('Delega annullata.'));
     }
 
     // ── Supporto ─────────────────────────────────────────────────────────────
+
+    /** @return array<int,int> gli id dei pagamenti le cui ritenute stanno nella delega */
+    private function pagamentiDellaDelega(DelegaF24 $delega): array
+    {
+        return DB::table('riga_f24_pagamento')
+            ->join('righe_f24', 'righe_f24.id', '=', 'riga_f24_pagamento.riga_f24_id')
+            ->where('righe_f24.delega_f24_id', $delega->id)
+            ->pluck('riga_f24_pagamento.pagamento_fornitore_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
 
     /**
      * Quante ritenute, e per quanto, aspettano ancora di finire in una delega.

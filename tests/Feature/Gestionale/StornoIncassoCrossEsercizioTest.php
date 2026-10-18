@@ -67,7 +67,7 @@ test("lo storno di un incasso di un esercizio chiuso si registra nell'esercizio 
     $rettifica = ScritturaContabile::where('scrittura_padre_id', $s->incasso->id)->where('tipo_movimento', 'rettifica')->firstOrFail();
 
     expect($rettifica->esercizio_id)->toBe($aperto->id)
-        ->and($rettifica->data_competenza->toDateString())->toBe(now()->toDateString())
+        ->and($rettifica->data_competenza->toDateString())->toBe(\App\Helpers\DateHelper::oggiUtente())
         ->and($rettifica->causale)->toContain('Esercizio 2026')
         ->and($s->incasso->fresh()->stato)->toBe('annullata');
 

@@ -253,22 +253,25 @@
     <div style="font-size: 7.5pt; color: #444; margin-bottom: 4px;">Movimenti di entrata e di uscita di cassa, banca e fondi dal {{ $data($es['data_inizio']) }} al {{ $data($es['data_fine']) }}, in ordine cronologico.</div>
     <table style="width: 100%; border-collapse: collapse; font-size: 6.8pt;">
         <thead><tr>
-            <th style="{{ $th }} text-align: left; width: 9%;">Data</th>
-            <th style="{{ $th }} text-align: left; width: 11%;">Protocollo</th>
+            {{-- Protocollo al 14% e senza a capo: all'11% «RIM-2026-00009» si spezzava su due righe
+                 (collaudo 1, E4). In mPDF il nowrap non basta se la colonna è stretta: servono
+                 le larghezze giuste (Data 10%, provate con DejaVu Sans a 6,8pt e margini 12 mm). --}}
+            <th style="{{ $th }} text-align: left; width: 10%;">Data</th>
+            <th style="{{ $th }} text-align: left; width: 14%; white-space: nowrap;">Protocollo</th>
             <th style="{{ $th }} text-align: left;">Descrizione</th>
-            <th style="{{ $th }} text-align: left; width: 13%;">Conto</th>
-            <th style="{{ $th }} text-align: right; width: 11%;">Entrate</th>
-            <th style="{{ $th }} text-align: right; width: 11%;">Uscite</th>
+            <th style="{{ $th }} text-align: left; width: 12%;">Conto</th>
+            <th style="{{ $th }} text-align: right; width: 10%;">Entrate</th>
+            <th style="{{ $th }} text-align: right; width: 10%;">Uscite</th>
         </tr></thead>
         <tbody>
         @forelse($reg['righe'] as $m)
             <tr>
-                <td style="{{ $td }}">{{ $data($m['data']) }}</td>
-                <td style="{{ $td }}">{{ $m['protocollo'] }}</td>
+                <td style="{{ $td }} white-space: nowrap;">{{ $data($m['data']) }}</td>
+                <td style="{{ $td }} white-space: nowrap;">{{ $m['protocollo'] }}</td>
                 <td style="{{ $td }}">{{ $m['descrizione'] }}@if($m['gestione'] !== '—')<span style="color: #666;"> · {{ $m['gestione'] }}</span>@endif @if($m['annullata'])<span style="color: #b91c1c;"> [annullata]</span>@endif</td>
                 <td style="{{ $td }}">{{ $m['cassa'] }}</td>
-                <td style="{{ $tdR }}">{{ $m['entrata'] ? $fmt($m['entrata']) : '' }}</td>
-                <td style="{{ $tdR }}">{{ $m['uscita'] ? $fmt($m['uscita']) : '' }}</td>
+                <td style="{{ $tdR }} white-space: nowrap;">{{ $m['entrata'] ? $fmt($m['entrata']) : '' }}</td>
+                <td style="{{ $tdR }} white-space: nowrap;">{{ $m['uscita'] ? $fmt($m['uscita']) : '' }}</td>
             </tr>
         @empty
             <tr><td colspan="6" style="{{ $td }} color: #888; font-style: italic;">Nessun movimento.</td></tr>

@@ -9,6 +9,7 @@ use App\Models\Gestionale\ContoContabile;
 use App\Models\Gestionale\ScritturaContabile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 /**
  * Riallineamento delle scritture storiche sui fondi (beta.19).
@@ -170,8 +171,8 @@ class RiallineaFondiService
                     'esercizio_id' => $esercizio->id,
                     'gestione_id' => $originale->gestione_id,
                     'scrittura_padre_id' => $originale->id,
-                    'data_registrazione' => now()->toDateString(),
-                    'data_competenza' => now()->toDateString(),
+                    'data_registrazione' => DateHelper::oggiUtente(),
+                    'data_competenza' => DateHelper::oggiUtente(),
                     'causale' => mb_substr(
                         self::CAUSALE_MARKER." — rettifica {$originale->numero_protocollo}",
                         0, 255

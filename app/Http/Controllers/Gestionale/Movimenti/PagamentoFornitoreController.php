@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Helpers\DateHelper;
 
 /**
  * Controller per la registrazione dei pagamenti ai fornitori.
@@ -646,9 +647,12 @@ class PagamentoFornitoreController extends Controller
 
         $mpdf = $pdfService->generate('pdf.gestionale.distinta', $data);
 
-        $filename = sprintf('Distinta_PAG-%s_%s.pdf',
-            $pagamento->scrittura->numero_protocollo ?? $pagamento->id,
-            $pagamento->data_pagamento?->format('Ymd') ?? date('Ymd')
+        // Il protocollo della scrittura contiene già il prefisso («PAG-2026-00001»): il formato
+        // «Distinta_PAG-%s» produceva «Distinta_PAG-PAG-2026-00001». Il prefisso si aggiunge solo
+        // quando manca il protocollo e si ripiega sull'id del pagamento.
+        $filename = sprintf('Distinta_%s_%s.pdf',
+            $pagamento->scrittura->numero_protocollo ?? 'PAG-'.$pagamento->id,
+            $pagamento->data_pagamento?->format('Ymd') ?? str_replace('-', '', DateHelper::oggiUtente())
         );
 
         return response()->streamDownload(function () use ($mpdf) {

@@ -541,3 +541,75 @@ test('con l\'IA disponibile la bozza passa contesto e schema, e non manda cifre 
     $testo = json_encode($senzaFatti, JSON_UNESCAPED_UNICODE);
     expect(preg_replace('/"codice":"g\d+"/', '', $testo))->not->toMatch('/\d/');
 });
+
+// ─── Collaudo 1: E3 (nota ed estratto conto) ed E4 (colonna Protocollo del PDF) ──────────────
+
+test('la nota non dice che il saldo coincide con l\'estratto conto se l\'estratto conto non è indicato', function () {
+    $s = rendTestScenario($this);
+    $servizio = app(RendicontoService::class);
+    $param = ['condominio' => $s['condominio']->id, 'esercizio' => $s['esercizio']->id];
+
+    // Nessun estratto conto: verifica in avviso e nota «da verificare».
+    $r = $servizio->calcola($s['condominio'], $s['esercizio']);
+    $nota = $servizio->nota($r, null);
+    expect(collect($r['verifiche'])->firstWhere('codice', 'estratto_conto')['esito'])->toBe('avviso')
+        ->and($nota['compilata'])->toContain("[Da verificare con l'estratto conto bancario al 31/05/2027")
+        ->and($nota['compilata'])->not->toContain('coincide')
+        ->and($nota['mancanti'])->toBe([]);
+
+    // Estratto conto uguale al saldo: ora sì, coincide.
+    $saldoBanca = collect($r['riepilogo']['conti'])->firstWhere('conto_id', $s['banca']->conto_contabile_id)['saldo_finale'];
+    $this->actingAs($s['user'])->put(route('admin.gestionale.esercizi.rendiconto.aggiorna', $param), [
+        'saldi_estratto_conto' => [$s['banca']->conto_contabile_id => number_format($saldoBanca / 100, 2, ',', '.')],
+    ])->assertSessionHasNoErrors();
+    $r = $servizio->calcola($s['condominio'], $s['esercizio']);
+    expect($servizio->nota($r, $servizio->datiSalvati($s['esercizio']))['compilata'])
+        ->toContain("Il saldo coincide con l'estratto conto bancario al 31/05/2027.");
+
+    // Estratto conto diverso: la nota lo dice, con la differenza.
+    $this->actingAs($s['user'])->put(route('admin.gestionale.esercizi.rendiconto.aggiorna', $param), [
+        'saldi_estratto_conto' => [$s['banca']->conto_contabile_id => '1,00'],
+    ])->assertSessionHasNoErrors();
+    $r = $servizio->calcola($s['condominio'], $s['esercizio']);
+    $compilata = $servizio->nota($r, $servizio->datiSalvati($s['esercizio']))['compilata'];
+    expect($compilata)->toContain("NON coincide con l'estratto conto bancario al 31/05/2027")
+        ->and($compilata)->toContain('differenza');
+});
+
+test('una nota salvata col vecchio modello non afferma più la coincidenza con l\'estratto conto', function () {
+    $s = rendTestScenario($this);
+    $servizio = app(RendicontoService::class);
+
+    $vecchia = "Il saldo di cassa, banca e fondi è passato da {{F:cassa.iniziale}} a inizio esercizio a {{F:cassa.finale}} a fine esercizio e coincide con l'estratto conto bancario alla stessa data.";
+    $salvati = RendicontoEsercizio::create([
+        'esercizio_id' => $s['esercizio']->id,
+        'condominio_id' => $s['condominio']->id,
+        'nota_sintetica' => $vecchia,
+        'fonte_nota' => 'manuale',
+    ]);
+
+    $nota = $servizio->nota($servizio->calcola($s['condominio'], $s['esercizio']), $salvati);
+
+    expect($nota['testo'])->toBe($vecchia)
+        ->and($nota['compilata'])->not->toContain('coincide')
+        ->and($nota['compilata'])->toContain("[Da verificare con l'estratto conto bancario al 31/05/2027");
+});
+
+test('nel PDF del rendiconto la colonna Protocollo non va a capo', function () {
+    $s = rendTestScenario($this);
+    $servizio = app(RendicontoService::class);
+    $r = $servizio->calcola($s['condominio'], $s['esercizio']);
+
+    $html = view('pdf.gestionale.rendiconto', [
+        'condominio' => $s['condominio'],
+        'esercizio' => $s['esercizio'],
+        'r' => $r,
+        'nota' => $servizio->nota($r, null),
+        'sezione' => 'registro',
+    ])->render();
+
+    $protocollo = $r['registro']['righe'][0]['protocollo'];
+
+    expect($html)->toContain('width: 14%; white-space: nowrap;">Protocollo</th>')
+        ->and($html)->toMatch('/white-space: nowrap;">'.preg_quote(e($protocollo), '/').'<\/td>/');
+});

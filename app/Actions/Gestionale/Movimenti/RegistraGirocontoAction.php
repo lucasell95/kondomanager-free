@@ -13,6 +13,7 @@ use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\DoubleEntryValidator;
 use App\Services\Gestionale\SaldoCassaService;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 /**
  * Registrazione di un giroconto — spostamento di liquidità fra casse dello
@@ -194,7 +195,7 @@ class RegistraGirocontoAction
                 'condominio_id' => $condominio->id,
                 'esercizio_id' => $esercizio->id,
                 'gestione_id' => $validated['gestione_id'],
-                'data_registrazione' => now()->toDateString(),
+                'data_registrazione' => DateHelper::oggiUtente(),
                 'data_competenza' => $validated['data_operazione'],
                 'causale' => mb_substr($validated['causale'], 0, 255),
                 'tipo_movimento' => TipoMovimentoContabile::GIROCONTO,
