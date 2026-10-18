@@ -94,6 +94,9 @@ function annEmScenario(): object
 
     $s->emissione = ScritturaContabile::where('tipo_movimento', 'emissione_rata')->where('condominio_id', $condominio->id)->firstOrFail();
 
+    // L'emissione porta chi l'ha fatta (B9).
+    expect($s->emissione->created_by)->toBe($user->id);
+
     return $s;
 }
 

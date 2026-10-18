@@ -48,6 +48,7 @@ class StornoIncassoRateAction
                     'causale'            => mb_substr($causale, 0, 255),
                     'tipo_movimento'     => 'rettifica',
                     'stato'              => 'registrata',
+                    'created_by'         => auth()->id(),
                     'note'               => 'Annullamento prot. ' . $scr->numero_protocollo,
                 ]);
 

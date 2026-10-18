@@ -392,6 +392,7 @@ class FatturaPassivaService
                 'causale' => ($isPregresso ? '[PREGRESSO] ' : '')."Ft. {$data['numero_documento']} - {$fornitore->ragione_sociale}",
                 'tipo_movimento' => 'fattura_acquisto',
                 'stato' => 'registrata',
+                'created_by' => Auth::id(),
             ]);
 
             if ($isPregresso) {
@@ -768,6 +769,7 @@ class FatturaPassivaService
                 'causale' => "Ft. {$fattura->numero_documento} - {$fornitore->ragione_sociale} [modifica]",
                 'tipo_movimento' => 'fattura_acquisto',
                 'stato' => 'registrata',
+                'created_by' => Auth::id(),
             ]);
 
             // Righe DARE

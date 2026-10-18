@@ -120,6 +120,7 @@ class EmissioneRateController extends Controller
                         'causale'            => $request->descrizione_personalizzata ?: "Emissione " . $rata->descrizione,
                         'tipo_movimento'     => 'emissione_rata',
                         'stato'              => 'registrata',
+                        'created_by'         => $request->user()?->id,
                     ]);
 
                     // 2. Scrittura Righe (Dettaglio quote)

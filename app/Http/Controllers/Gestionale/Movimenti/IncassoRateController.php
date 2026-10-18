@@ -373,12 +373,22 @@ class IncassoRateController extends Controller
             ->where('id', $scrittura->created_by)
             ->value('name');
 
-        // Idem per l'utente che ha effettuato un eventuale storno
+        // Idem per l'utente che ha effettuato un eventuale storno.
+        //
+        // Lo storno sigilla l'incasso con stato 'annullata' (StornoIncassoRateAction) e crea una
+        // rettifica figlia: chi ha stornato è chi ha creato quella rettifica. Prima qui si
+        // controllava `stato === 'stornato'` (valore che la colonna non ammette) e si leggeva
+        // `dati_extra`, che le scritture non hanno: il ramo non si eseguiva mai.
         $utenteStornatore = null;
-        if ($scrittura->stato === 'stornato' && !empty($scrittura->dati_extra['stornato_da_user_id'])) {
-            $utenteStornatore = DB::table('users')
-                ->where('id', $scrittura->dati_extra['stornato_da_user_id'])
-                ->value('name');
+        if ($scrittura->stato === 'annullata') {
+            $stornatoreId = \App\Models\Gestionale\ScritturaContabile::where('scrittura_padre_id', $scrittura->id)
+                ->where('tipo_movimento', \App\Enums\TipoMovimentoContabile::RETTIFICA)
+                ->latest('id')
+                ->value('created_by');
+
+            $utenteStornatore = $stornatoreId
+                ? DB::table('users')->where('id', $stornatoreId)->value('name')
+                : null;
         }
 
         // Recuperiamo anche i formati frontend se vogliamo riciclare le stesse strutture logiche
