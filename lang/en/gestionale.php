@@ -2119,6 +2119,11 @@ return [
             'registrazione' => 'Recorded on :date',
             'operazione_help' => 'Operation date (issuance, payment, offset)',
         ],
+        'esercizio' => [
+            'label' => 'Financial year',
+            'help' => 'Transactions and opening balance of the selected financial year.',
+            'chiuso' => 'closed',
+        ],
         'vista' => [
             'label' => 'Movements view',
             'aggregata' => 'Aggregated',

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Condominio;
 use App\Models\Esercizio;
 use App\Models\Anagrafica;
+use App\Models\Gestionale\ContoContabile;
 use App\Models\Gestionale\RataQuote;
 use App\Helpers\MoneyHelper;
 use App\Services\Gestionale\CreditoService;
@@ -26,7 +27,7 @@ class EstrattoContoAnagraficaController extends Controller
      */
     public function show(Request $request, Condominio $condominio, Anagrafica $anagrafica)
     {
-        $esercizio = $this->getEsercizioCorrente($condominio);
+        $esercizio = $this->esercizioRichiesto($request, $condominio);
 
         $anagrafica->load(['immobili' => function($q) use ($condominio) {
             $q->where('condominio_id', $condominio->id);
@@ -46,6 +47,11 @@ class EstrattoContoAnagraficaController extends Controller
             'timeline'   => $this->timelinePerVista($timeline, $saldoInizialeCents, $vista),
             'stats'      => $stats,
             'vista'      => $vista,
+            // Gli esercizi fra cui scegliere (dal più recente): il selettore compare solo
+            // quando ce n'è più di uno.
+            'esercizi'   => $condominio->esercizi()
+                ->orderByDesc('data_inizio')
+                ->get(['id', 'nome', 'stato', 'data_inizio', 'data_fine']),
         ]);
     }
 
@@ -55,7 +61,7 @@ class EstrattoContoAnagraficaController extends Controller
      */
     public function print(Request $request, Condominio $condominio, Anagrafica $anagrafica, PdfService $pdfService)
     {
-        $esercizio = $this->getEsercizioCorrente($condominio);
+        $esercizio = $this->esercizioRichiesto($request, $condominio);
 
         $anagrafica->load(['immobili' => function($q) use ($condominio) {
             $q->where('condominio_id', $condominio->id);
@@ -91,6 +97,37 @@ class EstrattoContoAnagraficaController extends Controller
     // -------------------------------------------------------------------------
     // HELPER PRIVATO — Logica condivisa tra show() e print()
     // -------------------------------------------------------------------------
+
+    /**
+     * L'esercizio di cui mostrare l'estratto conto: quello chiesto con `?esercizio=`, altrimenti
+     * quello corrente (aperto), come sempre.
+     *
+     * Se non c'è nessun esercizio aperto (tutti chiusi) si ripiega sul più recente invece di
+     * fallire: l'estratto conto è una lettura e deve restare consultabile anche fra la chiusura
+     * di un esercizio e l'apertura del successivo.
+     *
+     * Un id che non è un esercizio di questo condominio risponde 404: ripiegare in silenzio su
+     * un altro esercizio mostrerebbe numeri di un periodo diverso da quello chiesto.
+     */
+    private function esercizioRichiesto(Request $request, Condominio $condominio): Esercizio
+    {
+        $richiesto = $request->query('esercizio');
+
+        if ($richiesto !== null && $richiesto !== '') {
+            $esercizio = $condominio->esercizi()->whereKey((int) $richiesto)->first();
+
+            abort_if(! $esercizio, 404);
+
+            return $esercizio;
+        }
+
+        $esercizio = $this->getEsercizioCorrente($condominio)
+            ?? $condominio->esercizi()->orderByDesc('data_inizio')->first();
+
+        abort_if(! $esercizio, 404);
+
+        return $esercizio;
+    }
 
     /**
      * La timeline nella vista richiesta: espansa così com'è, o aggregata per movimento.
@@ -132,11 +169,32 @@ class EstrattoContoAnagraficaController extends Controller
             ->where('esercizio_id', $esercizio->id)
             ->sum('saldo_iniziale'); 
 
-        // Recupero tutti i movimenti dell'anagrafica escludendo i movimenti fittizi di cassa interna
+        // I movimenti dell'anagrafica nell'esercizio richiesto, sui soli conti dei condòmini.
+        //
+        // ⚠️ **Per esercizio.** Il saldo iniziale qui sopra è quello dell'esercizio: è il residuo
+        // degli anni prima. Prendendo anche i movimenti degli esercizi precedenti, dal secondo
+        // esercizio quel residuo si contava due volte — una nel saldo iniziale, una nelle
+        // emissioni e negli incassi vecchi che lo avevano prodotto.
+        //
+        // ⚠️ **Per mastro.** `anagrafica_id` sulle righe non vuol dire sempre «condòmino»: le
+        // fatture e i pagamenti dei fornitori lo valorizzano con il primo referente del fornitore
+        // (debiti v/fornitori, ritenute), le regolazioni immediate sul conto di costo. Se quel
+        // referente è anche un condòmino, quelle righe finivano nel suo estratto conto. Restano i
+        // conti che descrivono la posizione del condòmino verso il condominio: Crediti verso
+        // condòmini (1101: rate emesse, incassi, compensazioni, storni) e Anticipi da condòmini
+        // (2101: le eccedenze di un incasso senza una quota su cui appoggiarle). Si leggono per
+        // `ruolo`, come fa chi le scrive, non per codice.
+        $contiCondomini = ContoContabile::where('condominio_id', $condominio->id)
+            ->whereIn('ruolo', ['crediti_condomini', 'anticipi_condomini'])
+            ->pluck('id');
+
+        // Esclusi anche i movimenti fittizi di cassa interna (`cassa_id`).
         $movimenti = $anagrafica->movimenti()
-            ->whereHas('scrittura', function($q) use ($condominio) {
-                $q->where('condominio_id', $condominio->id);
+            ->whereHas('scrittura', function($q) use ($condominio, $esercizio) {
+                $q->where('condominio_id', $condominio->id)
+                  ->where('esercizio_id', $esercizio->id);
             })
+            ->whereIn('conto_contabile_id', $contiCondomini)
             ->whereNull('cassa_id')
             ->with(['scrittura.gestione', 'rata', 'immobile']) 
             ->orderBy('created_at', 'asc') 

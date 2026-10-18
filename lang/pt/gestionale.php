@@ -2474,6 +2474,11 @@ return [
             'registrazione' => 'Registado em :date',
             'operazione_help' => 'Data da operação (emissão, pagamento, compensação)',
         ],
+        'esercizio' => [
+            'label' => 'Exercício',
+            'help' => 'Movimentos e saldo inicial do exercício selecionado.',
+            'chiuso' => 'encerrado',
+        ],
         'vista' => [
             'label' => 'Vista dos movimentos',
             'aggregata' => 'Agregada',
