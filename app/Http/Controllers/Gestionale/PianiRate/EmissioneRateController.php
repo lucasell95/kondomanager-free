@@ -108,6 +108,7 @@ class EmissioneRateController extends Controller
 
                     $totaleRataCentesimi = 0;
                     $totalePregressoCentesimi = 0;
+                    $adPersonamPerImmobile = [];   // immobile_id => centesimi (vedi sotto)
 
                     // 1. Scrittura Testata
                     $scrittura = ScritturaContabile::create([
@@ -167,6 +168,27 @@ class EmissioneRateController extends Controller
 
                         $componentePregresso = $importoQuota - $componenteGestione;
 
+                        // ⚠️ **Spese ad personam: non si addebitano due volte.** Una riga di
+                        // fattura su una sola unità è già a giornale come DARE Crediti verso
+                        // condòmini con l'immobile (anticipazione, FatturaPassivaService). Se il
+                        // piano straordinario la rateizza, chiudere anche quella parte su Gestione
+                        // Rate lasciava 1101 gonfiato dell'importo ad personam anche dopo il
+                        // pagamento, e Gestione Rate con lui. La parte ad personam della quota
+                        // (`addebito_diretto`, scritta da GenerateRateQuotesAction) chiude invece
+                        // sull'anticipazione stessa: AVERE 1101 con l'immobile, senza anagrafica.
+                        // Il condòmino deve comunque l'intera quota (il DARE resta pieno): cambia
+                        // solo la contropartita. Le quote generate prima di questa correzione non
+                        // hanno la chiave e si comportano come prima.
+                        $componenteAdPersonam = 0;
+                        if (is_array($regole) && isset($regole['importi']['addebito_diretto']) && $componenteGestione > 0) {
+                            $componenteAdPersonam = max(0, min((int) $regole['importi']['addebito_diretto'], $componenteGestione));
+                        }
+
+                        if ($componenteAdPersonam > 0 && $quota->immobile_id) {
+                            $componenteGestione -= $componenteAdPersonam;
+                            $adPersonamPerImmobile[$quota->immobile_id] = ($adPersonamPerImmobile[$quota->immobile_id] ?? 0) + $componenteAdPersonam;
+                        }
+
                         $scrittura->righe()->create([
                             'conto_contabile_id' => $contoCrediti->id,
                             'anagrafica_id'      => $quota->anagrafica_id,
@@ -189,7 +211,7 @@ class EmissioneRateController extends Controller
                     // `saldo_usato < 0`, quindi la sua componente di riporto riduce il debito. Un
                     // totale negativo si scrive nel verso opposto, e la quadratura regge comunque
                     // perché il DARE delle quote è già la somma algebrica delle due componenti.
-                    $totaleDareQuote = $totaleRataCentesimi + $totalePregressoCentesimi;
+                    $totaleDareQuote = $totaleRataCentesimi + $totalePregressoCentesimi + array_sum($adPersonamPerImmobile);
 
                     if ($totaleDareQuote > 0) {
 
@@ -209,6 +231,18 @@ class EmissioneRateController extends Controller
                                 'tipo_riga'          => $totale > 0 ? 'avere' : 'dare',
                                 'importo'            => abs($totale),
                                 'note'               => $nota
+                            ]);
+                        }
+
+                        // Chiusura dell'anticipazione ad personam, una riga per unità.
+                        foreach ($adPersonamPerImmobile as $immobileId => $importoAdPersonam) {
+                            $scrittura->righe()->create([
+                                'conto_contabile_id' => $contoCrediti->id,
+                                'immobile_id'        => $immobileId,
+                                'rata_id'            => $rata->id,
+                                'tipo_riga'          => 'avere',
+                                'importo'            => $importoAdPersonam,
+                                'note'               => "Chiusura anticipazione spesa ad personam — " . $rata->descrizione,
                             ]);
                         }
 

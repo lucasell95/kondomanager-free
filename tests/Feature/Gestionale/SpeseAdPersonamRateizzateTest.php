@@ -111,6 +111,17 @@ test('spesa ad personam rateizzata: dopo emissione e pagamento la posizione su 1
     // Dopo l'emissione il condòmino deve 500,00, non 1.000,00.
     expect(adPersSaldo1101($condominio->id, $immobileId))->toBe(50000);
 
+    // La spesa ad personam non è un'entrata della gestione: Gestione rate non la riceve.
+    $gestioneRate = ContoContabile::where('condominio_id', $condominio->id)->where('ruolo', 'gestione_rate')->firstOrFail();
+    expect((int) DB::table('righe_scritture')->where('conto_contabile_id', $gestioneRate->id)->sum('importo'))->toBe(0);
+
+    // E l'estratto conto del condòmino mostra l'addebito di 500,00 (la riga di chiusura
+    // dell'anticipazione non ha anagrafica e non vi compare).
+    $ledger = new ReflectionMethod(\App\Http\Controllers\Gestionale\PianiRate\EstrattoContoAnagraficaController::class, 'buildLedger');
+    $ledger->setAccessible(true);
+    [, $stats] = $ledger->invoke(app(\App\Http\Controllers\Gestionale\PianiRate\EstrattoContoAnagraficaController::class), $condominio, $esercizio, $anagrafica);
+    expect($stats['saldo_raw'])->toBe(50000);
+
     // Incasso dell'intero importo.
     $contoBanca = DB::table('conti_contabili')->insertGetId([
         'condominio_id' => $condominio->id, 'ruolo' => 'conto_bancario', 'codice' => '1010',
