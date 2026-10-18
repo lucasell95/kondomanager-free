@@ -44,3 +44,4 @@ deploy/nas/install.log
 deploy/nas/codice/
 deploy/nas/codice.tar.gz
 deploy/nas/azione
+deploy/nas/dump/

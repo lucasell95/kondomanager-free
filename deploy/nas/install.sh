@@ -24,7 +24,7 @@ DEV_MOUNTS="app config database lang resources routes public/build"
 : "${APP_IP:?imposta APP_IP in nas.conf}" "${LAN_SUBNET:?imposta LAN_SUBNET}" "${LAN_GATEWAY:?imposta LAN_GATEWAY}"
 APP_URL="${APP_URL:-http://$APP_HOSTNAME}"
 
-# --- Azione richiesta (file "azione" accanto allo script, letto una volta): install (default) | codice
+# --- Azione richiesta (file "azione" accanto allo script, letto una volta): install (default) | codice | dump
 AZIONE=install
 if [ -f azione ]; then AZIONE="$(tr -d ' \r\n' < azione)"; rm -f azione; fi
 echo "--- azione: $AZIONE"
@@ -57,6 +57,15 @@ if [ ! -f .secrets ]; then
 fi
 . ./.secrets
 mkdir -p data/db data/storage data/config
+
+# Azione "dump": copia del database in dump/kondomanager.sql (per backup o per un'istanza di sviluppo)
+if [ "$AZIONE" = "dump" ]; then
+  mkdir -p dump
+  docker exec kondo_db mariadb-dump -uroot -p"$ROOT_PASS" --single-transaction --routines --triggers \
+    --databases kondomanager > dump/kondomanager.sql
+  gzip -f dump/kondomanager.sql
+  ls -l dump; echo "===== $(date '+%F %T') fine install.sh (dump) OK"; exit 0
+fi
 
 # --- Immagini ---
 docker pull "$IMAGE"
