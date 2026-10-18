@@ -81,7 +81,13 @@ class StornoIncassoController extends Controller
             ->toArray();
 
         // 5. ESEGUIAMO L'AZIONE DI STORNO (Che inverte sia padre che figlie)
-        $action->execute($scrittura, $condominio);
+        try {
+            $action->execute($scrittura, $condominio);
+        } catch (\DomainException $e) {
+            // Storno non registrabile (esercizio chiuso e nessun esercizio aperto): nulla è
+            // stato scritto, si torna indietro con il motivo invece di una pagina 500.
+            return back()->with($this->flashError($e->getMessage()));
+        }
 
         // 6. AGGIORNIAMO LO SCADENZIARIO UTENTI
         if (!empty($rateIds) && !empty($anagraficheIds)) {
