@@ -75,8 +75,13 @@ class DelegaF24Controller extends Controller
 
         $esercizio = $this->esercizioCorrente($condominio);
 
-        $base = DelegaF24::delCondominio($condominio->id)
-            ->when($esercizio, fn ($q) => $q->where('esercizio_id', $esercizio->id));
+        // ⚠️ **Tutte le deleghe del condominio, di qualunque esercizio.** Il versamento delle
+        // ritenute è un obbligo del sostituto d'imposta che segue la data del pagamento, non
+        // l'esercizio condominiale (art. 25-ter c. 2-bis DPR 600/1973): filtrando sull'ultimo
+        // esercizio aperto, una delega ancora da versare appoggiata all'esercizio precedente —
+        // aperto in attesa del rendiconto, o già chiuso — spariva dallo scadenzario e dai
+        // contatori «Da versare» e «Scadute».
+        $base = DelegaF24::delCondominio($condominio->id);
 
         // I filtri restano in query string: così una vista filtrata si può mettere nei
         // preferiti o mandare per link, come nelle altre pagine del gestionale.
@@ -109,7 +114,7 @@ class DelegaF24Controller extends Controller
             })
             ->when($filtri['plafond'], fn ($q, $p) => $q->where('plafond', $p));
 
-        // Il riepilogo guarda TUTTE le deleghe dell'esercizio, non la pagina corrente: un
+        // Il riepilogo guarda TUTTE le deleghe del condominio, non la pagina corrente: un
         // totale «da versare» che cambia sfogliando sarebbe un numero senza significato.
         $riepilogo = $this->riepilogo((clone $base)->get());
 
@@ -164,7 +169,7 @@ class DelegaF24Controller extends Controller
             // Il pulsante «Aggiorna scadenze» sa se serve premerlo: qui contiamo le
             // ritenute operate che non stanno in nessuna delega viva. È la stessa query
             // che poi le raccoglie, quindi non può divergere dal risultato del ricalcolo.
-            'da_calcolare' => $this->scoperte($condominio, $esercizio?->id),
+            'da_calcolare' => $this->scoperte($condominio),
             'soglie' => [
                 'appalti_cents' => (int) config('fiscale.plafond.appalto_4'),
                 'professionisti_cents' => (int) config('fiscale.plafond.lavoro_autonomo_20'),
@@ -327,15 +332,15 @@ class DelegaF24Controller extends Controller
      * diverso da zero è l'unica condizione in cui premere «Aggiorna scadenze» cambia
      * qualcosa — ed è per questo che il pulsante lo dice invece di stare lì muto.
      *
+     * Si contano su **tutti** gli esercizi, come le raccoglie il ricalcolo: un contatore che
+     * guardasse solo l'esercizio corrente direbbe «tutto allineato» mentre una ritenuta
+     * registrata sull'esercizio precedente aspetta ancora.
+     *
      * @return array{numero: int, totale_cents: int}
      */
-    private function scoperte(Condominio $condominio, ?int $esercizioId): array
+    private function scoperte(Condominio $condominio): array
     {
-        if (! $esercizioId) {
-            return ['numero' => 0, 'totale_cents' => 0];
-        }
-
-        $ritenute = $this->genera->ritenuteDaVersare($condominio, $esercizioId);
+        $ritenute = $this->genera->ritenuteDaVersare($condominio);
 
         return [
             'numero' => $ritenute->count(),
@@ -343,6 +348,11 @@ class DelegaF24Controller extends Controller
         ];
     }
 
+    /**
+     * L'esercizio a cui appoggiare le deleghe NUOVE (la colonna è obbligatoria e la conferma
+     * del versamento vi registra la scrittura). Non serve più a scegliere quali ritenute o
+     * quali deleghe mostrare: quelle si guardano su tutti gli esercizi.
+     */
     private function esercizioCorrente(Condominio $condominio)
     {
         return $condominio->esercizi()->where('stato', 'aperto')->latest('id')->first()

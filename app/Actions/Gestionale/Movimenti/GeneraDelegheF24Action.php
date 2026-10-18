@@ -51,6 +51,12 @@ class GeneraDelegheF24Action
     public function __construct(private PlafondRitenuteService $plafond) {}
 
     /**
+     * Ricostruisce le bozze del condominio.
+     *
+     * `$esercizioId` è solo l'esercizio a cui **appoggiare** le deleghe nuove (la colonna è
+     * obbligatoria, e la conferma del versamento scrive lì la sua scrittura): non filtra più le
+     * ritenute. Vedi `ritenuteDaVersare()` per il perché.
+     *
      * @return \Illuminate\Support\Collection<int,DelegaF24>
      */
     public function esegui(Condominio $condominio, int $esercizioId): \Illuminate\Support\Collection
@@ -58,12 +64,17 @@ class GeneraDelegheF24Action
         return DB::transaction(function () use ($condominio, $esercizioId) {
 
             // Le bozze si rifanno da zero: non sono documenti, sono una proposta.
+            //
+            // ⚠️ **Tutte le bozze del condominio, non solo quelle dell'esercizio corrente.** Una
+            // bozza nata quando l'esercizio corrente era un altro tiene «occupati» i suoi
+            // pagamenti (vedi `$giaVersati` sotto): se restasse in piedi, le sue ritenute non
+            // rientrerebbero nel cumulo e la soglia dei 500 € si conterebbe su due mucchi
+            // separati — che è esattamente il difetto che questa correzione chiude.
             DelegaF24::where('condominio_id', $condominio->id)
-                ->where('esercizio_id', $esercizioId)
                 ->where('stato', StatoDelegaF24::BOZZA->value)
                 ->each(fn (DelegaF24 $d) => $d->righe()->delete() && $d->delete());
 
-            $ritenute = $this->ritenuteDaVersare($condominio, $esercizioId);
+            $ritenute = $this->ritenuteDaVersare($condominio);
 
             if ($ritenute->isEmpty()) {
                 return collect();
@@ -93,9 +104,24 @@ class GeneraDelegheF24Action
      * domanda «c'è qualcosa che non ho ancora messo in nessuna delega?» senza duplicare
      * la definizione di «scoperta», che è la parte delicata.
      *
+     * ## Su TUTTI gli esercizi, non su quello corrente
+     *
+     * Fino al 18/10/2026 qui c'era un filtro sull'esercizio della scrittura del pagamento, e il
+     * chiamante passava l'**ultimo esercizio aperto**. Era sbagliato: l'obbligo di versamento è
+     * del condominio come **sostituto d'imposta**, e segue la **data del pagamento** (soglia dei
+     * 500 € e finestre 16/6, 16/12, 16/1 dell'art. 25-ter c. 2-bis DPR 600/1973), non
+     * l'esercizio condominiale in cui il pagamento è stato registrato. Con un esercizio
+     * 01/06–31/05 per mesi convivono due esercizi aperti — il vecchio in attesa del rendiconto e
+     * il nuovo — e le ritenute registrate sul vecchio sparivano dallo scadenzario: versate tardi
+     * (cumulo spezzato in due, soglia non raggiunta) o mai. Lo stesso valeva per le ritenute non
+     * ancora versate di un esercizio già chiuso.
+     *
+     * Il parametro `$esercizioId` resta nella firma solo per compatibilità con i chiamanti
+     * esistenti ed è **ignorato**.
+     *
      * @return \Illuminate\Support\Collection<int,array<string,mixed>>
      */
-    public function ritenuteDaVersare(Condominio $condominio, int $esercizioId): \Illuminate\Support\Collection
+    public function ritenuteDaVersare(Condominio $condominio, ?int $esercizioId = null): \Illuminate\Support\Collection
     {
         // Solo le deleghe ANCORA IN PIEDI bloccano un pagamento. Dopo uno storno le
         // ritenute tornano da versare, e devono rientrare nel calcolo: escluderle
@@ -113,9 +139,9 @@ class GeneraDelegheF24Action
         return PagamentoFornitore::query()
             ->with('fornitore')
             ->where('condominio_id', $condominio->id)
-            // L'esercizio non sta sul pagamento ma sulla sua scrittura: `pagamenti_fornitori`
-            // porta i dati documentali, la collocazione contabile vive nel giornale.
-            ->whereHas('scrittura', fn ($q) => $q->where('esercizio_id', $esercizioId))
+            // Nessun filtro per esercizio: vedi il docblock. Resta il vincolo che il pagamento
+            // abbia una scrittura, come prima (il filtro per esercizio lo imponeva di sponda).
+            ->whereHas('scrittura')
             ->where('importo_ritenuta', '>', 0)
             ->whereNull('pagamento_padre_id')
             ->where('stato', '!=', StatoPagamentoFornitore::STORNATO->value)
