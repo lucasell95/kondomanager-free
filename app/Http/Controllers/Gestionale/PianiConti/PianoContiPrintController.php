@@ -102,8 +102,12 @@ class PianoContiPrintController extends Controller
         PianoConto $pianoConto,
         PdfService $pdfService
     ) {
-        // Recupera i piani rate collegati alla stessa gestione del piano dei conti
+        // Recupera i piani rate ATTIVI collegati alla stessa gestione del piano dei conti.
+        // Senza il filtro entravano anche i piani disattivati, e un piano vecchio non eliminato
+        // raddoppiava gli importi.
         $pianiRate = PianoRate::where('gestione_id', $pianoConto->gestione_id)
+            ->where('attivo', true)
+            ->orderBy('id')
             ->with([
                 'rate' => fn($q) => $q->orderBy('numero_rata'),
                 'rate.rateQuote.anagrafica',
@@ -113,15 +117,22 @@ class PianoContiPrintController extends Controller
 
         // --- Costruzione matrice ---
         // Righe: unità immobiliari / anagrafiche
-        // Colonne: rate (per numero e scadenza)
-        $matrice    = [];   // chiave => [cod, nome, piano, interno, importi_per_rata[numero_rata], totale]
-        $colonneRate = [];   // numero_rata => [nome, scadenza]
+        // Colonne: una per (piano, rata). Con la sola chiave `numero_rata` la «1ª rata» di due
+        // piani diversi della gestione finiva nella stessa colonna, sommata, con la scadenza
+        // dell'ultimo piano letto. Con un piano solo le colonne sono quelle di sempre; con più
+        // piani l'intestazione porta anche il nome del piano.
+        $matrice    = [];   // chiave => [cod, nome, piano, interno, importi_per_rata[colonna], totale]
+        $colonneRate = [];   // colonna ("piano-numero") => [nome, scadenza]
+        $piuPiani    = $pianiRate->count() > 1;
 
         foreach ($pianiRate as $pianoRate) {
             foreach ($pianoRate->rate as $rata) {
-                // Colonna per questa rata
-                $colonneRate[$rata->numero_rata] = [
-                    'nome'    => $rata->numero_rata . 'ª Rata',
+                // Colonna per questa rata di questo piano. Le chiavi seguono l'ordine dei piani
+                // (per id) e, dentro il piano, quello delle rate (per numero).
+                $colonna = $pianoRate->id . '-' . $rata->numero_rata;
+
+                $colonneRate[$colonna] = [
+                    'nome'    => $rata->numero_rata . 'ª Rata' . ($piuPiani ? ' – ' . $pianoRate->nome : ''),
                     'scadenza'=> $rata->data_scadenza
                         ? $rata->data_scadenza->format('d/m/Y')
                         : '',
@@ -154,18 +165,18 @@ class PianoContiPrintController extends Controller
                         ];
                     }
 
-                    if (!isset($matrice[$chiave]['importi_per_rata'][$rata->numero_rata])) {
-                        $matrice[$chiave]['importi_per_rata'][$rata->numero_rata] = 0;
+                    if (!isset($matrice[$chiave]['importi_per_rata'][$colonna])) {
+                        $matrice[$chiave]['importi_per_rata'][$colonna] = 0;
                     }
 
-                    $matrice[$chiave]['importi_per_rata'][$rata->numero_rata] += $quota->importo;
+                    $matrice[$chiave]['importi_per_rata'][$colonna] += $quota->importo;
                     $matrice[$chiave]['totale'] += $quota->importo;
                 }
             }
         }
 
-        // Ordina le colonne per numero rata e la matrice per codice immobile
-        ksort($colonneRate);
+        // Le colonne sono già in ordine (piano, numero rata): le rate arrivano ordinate per
+        // numero. La matrice si ordina per codice immobile.
         usort($matrice, fn($a, $b) => strcmp($a['cod'], $b['cod']));
 
         $data = [
