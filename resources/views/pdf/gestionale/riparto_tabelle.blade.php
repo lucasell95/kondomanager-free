@@ -462,7 +462,8 @@
             Gli importi sono in Euro (€). Le quote ‰ sono quelle registrate nelle tabelle di ripartizione. Le colonne contrassegnate con 'q.' indicano quote proporzionali, non millesimi. La colonna <em>% TOT.</em> indica la percentuale di ogni soggetto sul totale del piano rate.
         </td>
         <td style="width: 25%; vertical-align: bottom; font-size: {{ $fontTiny }}; color: #666; text-align: right;">
-            Stampato il {{ now()->format('d/m/Y') }} alle {{ now()->format('H:i') }}
+            @php $stampatoIl = \App\Helpers\DateHelper::adessoUtente(); @endphp
+            Stampato il {{ $stampatoIl->format('d/m/Y') }} alle {{ $stampatoIl->format('H:i') }}
             @if($pianoRate->stato)
                 <br>Stato: <strong>{{ ucfirst($pianoRate->stato->value ?? $pianoRate->stato) }}</strong>
             @endif

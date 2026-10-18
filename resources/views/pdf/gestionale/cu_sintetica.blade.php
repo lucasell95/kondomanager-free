@@ -124,7 +124,7 @@
 
 <table style="width: 100%; margin-top: 16px;">
     <tr>
-        <td style="width: 50%; font-size: 8pt;">Data, {{ now()->format('d/m/Y') }}</td>
+        <td style="width: 50%; font-size: 8pt;">Data, {{ \App\Helpers\DateHelper::adessoUtente()->format('d/m/Y') }}</td>
         <td style="font-size: 8pt; text-align: center;">
             Firma del sostituto d'imposta<br>
             @if($firm['cognome'])

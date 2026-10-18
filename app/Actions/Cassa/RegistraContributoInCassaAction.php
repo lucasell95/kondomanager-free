@@ -9,6 +9,7 @@ use App\Models\Gestionale\ContoContabile;
 use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 /**
  * Porta a giornale un "già versato" (beta.26) che l'amministratore dichiara
@@ -69,8 +70,8 @@ class RegistraContributoInCassaAction
                 'condominio_id'      => $cassa->condominio_id,
                 'gestione_id'        => null,
                 'esercizio_id'       => $esercizio->id,
-                'data_registrazione' => now()->format('Y-m-d'),
-                'data_competenza'    => now()->format('Y-m-d'),
+                'data_registrazione' => DateHelper::oggiUtente(),
+                'data_competenza'    => DateHelper::oggiUtente(),
                 'causale'            => mb_substr($causale, 0, 255),
                 'tipo_movimento'     => TipoMovimentoContabile::ACCANTONAMENTO,
                 'stato'              => 'registrata',

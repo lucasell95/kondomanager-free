@@ -22,6 +22,35 @@ class DateHelper
      */
     public static function oggiUtente(): string
     {
-        return Carbon::now(config('app.user_timezone', 'Europe/Rome'))->toDateString();
+        return self::adessoUtente()->toDateString();
+    }
+
+    /**
+     * L'istante attuale espresso nel fuso dell'utente, per ciò che si **mostra** o si
+     * **stampa** ("Data di stampa: 18/10/2026 22:50") e per ricavarne la data contabile di
+     * oggi.
+     *
+     * Non va usato per scrivere timestamp (`created_at`, orari degli eventi): quelli restano
+     * in UTC come il resto dell'applicazione. È un `Carbon` con il fuso impostato, quindi
+     * `format()` restituisce l'ora italiana; lo stesso istante in UTC è `->utc()`.
+     */
+    public static function adessoUtente(): Carbon
+    {
+        return Carbon::now(self::fusoUtente());
+    }
+
+    /** Il fuso orario dell'utente (`APP_USER_TIMEZONE`, default Europe/Rome). */
+    public static function fusoUtente(): string
+    {
+        return (string) (config('app.user_timezone') ?: 'Europe/Rome');
+    }
+
+    /**
+     * Un timestamp salvato (in UTC) convertito nel fuso dell'utente, per mostrarlo.
+     * `null` resta `null`.
+     */
+    public static function inFusoUtente(?\DateTimeInterface $istante): ?Carbon
+    {
+        return $istante === null ? null : Carbon::instance($istante)->setTimezone(self::fusoUtente());
     }
 }

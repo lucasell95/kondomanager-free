@@ -13,6 +13,7 @@ use App\Models\Gestionale\Conto;
 use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 /**
  * Registrazione a regolazione immediata — prima nota diretta costo → banca/cassa.
@@ -110,7 +111,7 @@ class RegistraRegolazioneImmediataAction
                 'condominio_id' => $condominio->id,
                 'esercizio_id' => $esercizio->id,
                 'gestione_id' => $validated['gestione_id'],
-                'data_registrazione' => now()->toDateString(),
+                'data_registrazione' => DateHelper::oggiUtente(),
                 'data_competenza' => $dataOperazione,
                 'causale' => mb_substr($validated['causale'], 0, 255),
                 'tipo_movimento' => TipoMovimentoContabile::REGOLAZIONE_IMMEDIATA,

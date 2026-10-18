@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Helpers\DateHelper;
 
 class FatturaPassivaService
 {
@@ -386,7 +387,7 @@ class FatturaPassivaService
                 'condominio_id' => $condominioId,
                 'esercizio_id' => $data['esercizio_id'],
                 'gestione_id' => $data['gestione_id'] ?? null,
-                'data_registrazione' => now(),
+                'data_registrazione' => DateHelper::oggiUtente(),
                 'data_competenza' => $fattura->data_documento,
                 'numero_protocollo' => $fattura->numero_protocollo,
                 'causale' => ($isPregresso ? '[PREGRESSO] ' : '')."Ft. {$data['numero_documento']} - {$fornitore->ragione_sociale}",
@@ -763,7 +764,7 @@ class FatturaPassivaService
                 'condominio_id' => $fattura->condominio_id,
                 'esercizio_id' => $fattura->esercizio_id,
                 'gestione_id' => $data['gestione_id'] ?? $fattura->scritture()->withTrashed()->first()?->gestione_id,
-                'data_registrazione' => now(),
+                'data_registrazione' => DateHelper::oggiUtente(),
                 'data_competenza' => $fattura->data_documento,
                 'numero_protocollo' => $fattura->numero_protocollo, // immutabile
                 'causale' => "Ft. {$fattura->numero_documento} - {$fornitore->ragione_sociale} [modifica]",

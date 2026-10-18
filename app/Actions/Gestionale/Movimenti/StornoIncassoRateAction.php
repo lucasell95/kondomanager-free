@@ -8,6 +8,7 @@ use App\Models\Esercizio;
 use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 class StornoIncassoRateAction
 {
@@ -43,7 +44,7 @@ class StornoIncassoRateAction
                     'esercizio_id'       => $esercizioId,
                     'gestione_id'        => $scr->gestione_id,
                     'scrittura_padre_id' => $scr->id, // 🟢 LINK DIRETTO ALLA SCRITTURA ORIGINALE
-                    'data_registrazione' => now(),
+                    'data_registrazione' => DateHelper::oggiUtente(),
                     'data_competenza'    => $dataCompetenza,
                     'causale'            => mb_substr($causale, 0, 255),
                     'tipo_movimento'     => 'rettifica',
@@ -125,7 +126,7 @@ class StornoIncassoRateAction
 
         return [
             $aperto->id,
-            now()->toDateString(),
+            DateHelper::oggiUtente(),
             sprintf('Storno: %s. Originale in esercizio «%s».', $scr->causale, $originale?->nome ?? '—'),
         ];
     }

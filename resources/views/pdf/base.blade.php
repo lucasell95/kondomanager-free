@@ -28,7 +28,7 @@
             <table style="width: 100%;">
                 <tr>
                     <td style="text-align: left; width: 75%;">
-                        <span style="color: #555;">Documento emesso il {{ ($data_emissione_stampe ?? now())->format('d/m/Y') }}</span>
+                        <span style="color: #555;">Documento emesso il {{ ($data_emissione_stampe ?? \App\Helpers\DateHelper::adessoUtente())->format('d/m/Y') }}</span>
                         @if(!empty($nota_legale_stampe))
                             <br>{!! nl2br(str_replace('  ', '&nbsp;&nbsp;', e($nota_legale_stampe))) !!}
                         @endif

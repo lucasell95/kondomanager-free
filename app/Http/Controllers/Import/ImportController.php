@@ -22,6 +22,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Support\LimiteCaricamento;
+use App\Helpers\DateHelper;
 
 /**
  * L'importazione dati — le schermate S1 e S2 del §14.1.
@@ -76,7 +77,7 @@ class ImportController extends Controller
                 'livello_corrente' => $interrotto->livello_corrente,
                 // Formattata qui e non nel browser: una data ISO che il client deve
                 // interpretare è un modo di sbagliare fuso orario per niente.
-                'iniziata_il' => $interrotto->created_at?->format('d/m/Y H:i'),
+                'iniziata_il' => DateHelper::inFusoUtente($interrotto->created_at)?->format('d/m/Y H:i'),
                 'file' => $interrotto->files()->count(),
                 'posizione' => $this->posizione($interrotto->livello_corrente),
                 'livelli_totali' => count(ImportRunner::livelli()),
@@ -424,7 +425,7 @@ class ImportController extends Controller
                 'url_controlli' => $batch->condominio_id === null
                     ? null
                     : route('admin.gestionale.controlli-import.index', $batch->condominio_id),
-                'completato_at' => $batch->completato_at?->format('d/m/Y H:i'),
+                'completato_at' => DateHelper::inFusoUtente($batch->completato_at)?->format('d/m/Y H:i'),
                 // Il riferimento del lotto si vede: è quello che si cita scrivendo a noi, e
                 // finora arrivava nei props senza essere reso da nessuna parte.
                 'riferimento' => strtoupper(substr($batch->uuid, 0, 8)),

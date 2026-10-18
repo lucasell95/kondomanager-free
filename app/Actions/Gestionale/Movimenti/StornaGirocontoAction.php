@@ -11,6 +11,7 @@ use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\DoubleEntryValidator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\DateHelper;
 
 /**
  * Storno di un giroconto.
@@ -96,8 +97,8 @@ class StornaGirocontoAction
                 'esercizio_id' => $esercizioTarget->id,
                 'gestione_id' => $scrittura->gestione_id,
                 'scrittura_padre_id' => $scrittura->id,
-                'data_registrazione' => now()->toDateString(),
-                'data_competenza' => now()->toDateString(),
+                'data_registrazione' => DateHelper::oggiUtente(),
+                'data_competenza' => DateHelper::oggiUtente(),
                 'causale' => mb_substr($causale, 0, 255),
                 'tipo_movimento' => TipoMovimentoContabile::STORNO_GIROCONTO,
                 'stato' => 'registrata',

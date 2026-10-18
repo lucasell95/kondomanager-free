@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use App\Helpers\DateHelper;
 
 class StornoFatturaController extends Controller
 {
@@ -98,8 +99,8 @@ class StornoFatturaController extends Controller
                 'tipo_documento'             => 'nota_credito',
                 'numero_documento'           => 'STORNO-' . ($fattura->numero_documento ?? $fattura->id),
                 'numero_protocollo'          => $protocolloNC, 
-                'data_documento'             => now()->format('Y-m-d'),
-                'data_scadenza'              => now()->format('Y-m-d'),
+                'data_documento'             => DateHelper::oggiUtente(),
+                'data_scadenza'              => DateHelper::oggiUtente(),
                 'importo_imponibile'         => abs($fattura->importo_imponibile / 100),
                 'importo_iva'                => abs($fattura->importo_iva / 100),
                 'importo_ritenuta'           => abs($fattura->importo_ritenuta / 100),

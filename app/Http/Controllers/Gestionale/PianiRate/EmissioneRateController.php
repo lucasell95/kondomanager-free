@@ -24,6 +24,7 @@ use App\Traits\HasEsercizio;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Helpers\DateHelper;
 
 /**
  * Controller responsabile per l'emissione e l'annullamento delle rate condominiali.
@@ -121,7 +122,7 @@ class EmissioneRateController extends Controller
                         'condominio_id'      => $condominio->id,
                         'esercizio_id'       => $esercizio->id,
                         'gestione_id'        => $pianoRate->gestione_id,
-                        'data_registrazione' => now(),
+                        'data_registrazione' => DateHelper::oggiUtente(),
                         'data_competenza'    => $request->data_emissione,
                         'causale'            => $request->descrizione_personalizzata ?: "Emissione " . $rata->descrizione,
                         'tipo_movimento'     => 'emissione_rata',
