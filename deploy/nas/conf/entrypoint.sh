@@ -90,6 +90,16 @@ if [ "$(cat /config/.version 2>/dev/null)" != "$VER" ]; then
   echo "$VER" > /config/.version
 fi
 
-as_www "php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan event:cache" || as_www "php artisan optimize:clear"
+if [ "${KONDO_DEV:-0}" = "1" ]; then
+  # Anteprima: codice montato dall'esterno, nessuna cache, file PHP riletti a ogni richiesta
+  echo "[kondo] Modalità anteprima: niente cache"
+  setenv APP_DEBUG true
+  printf 'opcache.validate_timestamps = 1\nopcache.revalidate_freq = 0\n' > /usr/local/etc/php/conf.d/zz-dev.ini
+  as_www "php artisan optimize:clear" >/dev/null
+else
+  setenv APP_DEBUG false
+  rm -f /usr/local/etc/php/conf.d/zz-dev.ini
+  as_www "php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan event:cache" || as_www "php artisan optimize:clear"
+fi
 echo "[kondo] Pronto"
 exec "$@"
