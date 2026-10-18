@@ -151,6 +151,7 @@ class ScritturaContabileController extends Controller
                 'costi'   => $statoPatrimoniale['costi'],
                 'ricavi'  => $statoPatrimoniale['ricavi'],
                 'risultato_esercizio' => $statoPatrimoniale['risultato_esercizio'],
+                'risultato_esercizi_precedenti' => $statoPatrimoniale['risultato_esercizi_precedenti'],
                 'liquidita_non_contabilizzata' => $statoPatrimoniale['liquidita_non_contabilizzata'],
             ],
             'diagnosi' => $diagnosi,

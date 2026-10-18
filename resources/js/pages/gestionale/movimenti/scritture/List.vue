@@ -34,6 +34,11 @@ interface Quadratura {
     costi: number;
     ricavi: number;
     risultato_esercizio: number;
+    /**
+     * Costi e ricavi degli esercizi precedenti che i conti patrimoniali (cumulativi) portano
+     * dentro: senza scritture di chiusura restano qui. 0 nel primo esercizio.
+     */
+    risultato_esercizi_precedenti?: number;
     liquidita_non_contabilizzata: number;
 }
 
@@ -155,6 +160,11 @@ const sintesiEconomica = computed(() => [
     { voce: 'Totale Spese (Costi)', valore: euro(props.quadratura.costi) },
     { voce: 'Totale Entrate (Ricavi)', valore: euro(props.quadratura.ricavi) },
     { voce: `${esito(props.quadratura.risultato_esercizio)} di Gestione`, valore: euro(props.quadratura.risultato_esercizio), evidenzia: true },
+    // Dal secondo esercizio: attivo e passivo sono cumulativi, quindi portano dentro anche il
+    // risultato degli anni prima, che nessuna scrittura di chiusura ha azzerato.
+    ...(props.quadratura.risultato_esercizi_precedenti
+        ? [{ voce: `${esito(props.quadratura.risultato_esercizi_precedenti)} esercizi precedenti`, valore: euro(props.quadratura.risultato_esercizi_precedenti) }]
+        : []),
 ]);
 
 /**
@@ -236,6 +246,10 @@ const pageGuides = [
                                         <span>Passivo <strong :class="quadratura.quadra ? 'text-slate-600' : 'text-slate-800'">{{ euro(quadratura.totale_passivo) }}</strong></span>
                                         <span>+</span>
                                         <span>Risultato esercizio <strong :class="quadratura.risultato_esercizio < 0 ? 'text-rose-700' : (quadratura.quadra ? 'text-slate-600' : 'text-slate-800')">{{ euro(quadratura.risultato_esercizio) }}</strong></span>
+                                        <template v-if="quadratura.risultato_esercizi_precedenti">
+                                            <span>+</span>
+                                            <span>Esercizi precedenti <strong :class="quadratura.risultato_esercizi_precedenti < 0 ? 'text-rose-700' : (quadratura.quadra ? 'text-slate-600' : 'text-slate-800')">{{ euro(quadratura.risultato_esercizi_precedenti) }}</strong></span>
+                                        </template>
                                         <TooltipProvider :delay-duration="200">
                                             <Tooltip>
                                                 <TooltipTrigger as-child>
