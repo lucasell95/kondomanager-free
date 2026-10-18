@@ -55,10 +55,16 @@ trait HasProtocolNumber
             'emissione_rata'              => 'EMI',
             'storno_credito'              => 'CMP',
             'accantonamento'              => 'ACC',
+            // Riporto dei residui al nuovo esercizio, scritto dalla chiusura guidata.
+            'chiusura'                    => 'CHI',
             default                       => 'SCR',
         };
 
-        return DB::transaction(fn () => static::nextNumberFor($model->condominio_id, $prefix));
+        $esercizioId = $model->esercizio_id ?? null;
+
+        return DB::transaction(fn () => static::nextNumberFor(
+            $model->condominio_id, $prefix, $esercizioId ? (int) $esercizioId : null
+        ));
     }
 
     /**
@@ -68,14 +74,49 @@ trait HasProtocolNumber
      * movimento con lo stesso prefisso — il numero vero resta quello assegnato
      * da generateProtocolNumber() al salvataggio effettivo.
      */
-    public static function previewNextProtocolNumber(int $condominioId, string $prefix): string
+    public static function previewNextProtocolNumber(int $condominioId, string $prefix, ?int $esercizioId = null): string
     {
-        return static::nextNumberFor($condominioId, $prefix);
+        // Senza esercizio indicato l'anteprima guarda quello in cui il movimento finirà: l'aperto
+        // (il più recente, come `HasEsercizio`). Così il numero mostrato nel form ha la stessa serie
+        // di quello che verrà assegnato.
+        $esercizioId ??= DB::table('esercizi')
+            ->where('condominio_id', $condominioId)
+            ->where('stato', 'aperto')
+            ->orderByDesc('data_inizio')
+            ->orderByDesc('id')
+            ->value('id');
+
+        return static::nextNumberFor($condominioId, $prefix, $esercizioId ? (int) $esercizioId : null);
     }
 
-    private static function nextNumberFor(int $condominioId, string $prefix): string
+    /**
+     * Il segmento centrale del protocollo: la serie dell'esercizio, oppure l'anno solare.
+     *
+     * Con l'anno solare un esercizio 01/06–31/05 aveva due serie (giugno-dicembre e
+     * gennaio-maggio), condivise con l'esercizio vicino. Un esercizio con `serie_protocollo`
+     * (la chiusura guidata la valorizza sul nuovo esercizio, es. «2027/28») numera dal primo
+     * movimento all'ultimo con un'unica serie, che ricomincia da 1 all'esercizio successivo.
+     *
+     * Gli esercizi senza serie (tutti quelli creati prima, o a mano) continuano sull'anno solare:
+     * nessun protocollo esistente cambia e nessuna serie in corso si interrompe. Le due famiglie
+     * non si toccano: `INC-2027-%` non trova `INC-2027/28-00001`.
+     */
+    public static function segmentoProtocollo(?int $esercizioId): string
     {
-        $year = now()->format('Y');
+        if ($esercizioId) {
+            $serie = DB::table('esercizi')->where('id', $esercizioId)->value('serie_protocollo');
+
+            if (is_string($serie) && $serie !== '') {
+                return $serie;
+            }
+        }
+
+        return now()->format('Y');
+    }
+
+    private static function nextNumberFor(int $condominioId, string $prefix, ?int $esercizioId = null): string
+    {
+        $year = static::segmentoProtocollo($esercizioId);
 
         $maxInFatture = DB::table('fatture_passive')
             ->where('condominio_id', $condominioId)

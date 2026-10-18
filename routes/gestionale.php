@@ -459,6 +459,9 @@ Route::prefix('/gestionale/{condominio}')
 
     require __DIR__.'/gestionale_fiscale.php';
 
+    // --- PASSAGGIO D'ESERCIZIO GUIDATO (area chiusura) ---
+    require __DIR__.'/gestionale_chiusura.php';
+
     // --- DETTAGLIO SCRITTURA CONTABILE (v1.9.1-beta.7) ---
     Route::get('/scritture/{scrittura}', [ScritturaContabileController::class, 'show'])
         ->name('scritture.show');

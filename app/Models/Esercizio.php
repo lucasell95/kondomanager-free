@@ -24,6 +24,9 @@ class Esercizio extends Model
         'data_inizio',
         'data_fine',
         'stato',
+        // Segmento centrale dei protocolli di questo esercizio («2027/28»). NULL = anno solare,
+        // come sempre. Vedi `HasProtocolNumber::segmentoProtocollo()`.
+        'serie_protocollo',
         'note', 
     ];
 
@@ -35,6 +38,21 @@ class Esercizio extends Model
     public function condominio()
     {
         return $this->belongsTo(Condominio::class);
+    }
+
+    /** I passaggi d'esercizio che hanno chiuso questo esercizio (al più uno eseguito). */
+    public function chiusure()
+    {
+        return $this->hasMany(\App\Models\Gestionale\ChiusuraEsercizio::class, 'esercizio_chiuso_id');
+    }
+
+    /** La chiusura eseguita con la procedura guidata, se c'è. */
+    public function chiusuraEseguita(): ?\App\Models\Gestionale\ChiusuraEsercizio
+    {
+        return $this->chiusure()
+            ->where('stato', \App\Models\Gestionale\ChiusuraEsercizio::STATO_ESEGUITA)
+            ->latest('id')
+            ->first();
     }
 
     public function gestioni()

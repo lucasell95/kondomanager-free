@@ -8,6 +8,7 @@ export interface Esercizio {
     data_inizio: string,
     data_fine: string | null,
     stato: 'aperto' | 'chiuso';         
+    serie_protocollo?: string | null;
 }
 
 export interface StatusType {

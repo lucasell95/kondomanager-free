@@ -16,6 +16,7 @@ import WidgetDoubleLock from '@/components/gestionale/movimenti/fatture/WidgetDo
 import ModalSpesaImprevista from '@/components/gestionale/movimenti/fatture/ModalSpesaImprevista.vue';
 import ModalOverrideBudget from '@/components/gestionale/movimenti/fatture/ModalOverrideBudget.vue';
 import MoneyInput from '@/components/MoneyInput.vue';
+import AvvisoFatturaTardiva from '@/components/gestionale/esercizi/AvvisoFatturaTardiva.vue';
 import { lordoRigaCents } from '@/lib/gestionale/fatture/budget';
 import { calcolaTotali, risolviRegimeRitenuta } from '@/lib/gestionale/fatture/totali';
 import { euroToCents } from '@/lib/gestionale/fatture/money';
@@ -893,6 +894,10 @@ const pageGuides = [
                             <AlertTriangle class="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-500" />
                             <span><strong>Attenzione (Art. 1130 c.c.)</strong> Stai registrando un'operazione avvenuta oltre 30 giorni fa. Ricorda che la normativa prevede l'annotazione a registro entro i 30 giorni.</span>
                         </div>
+
+                        <!-- Fattura di un esercizio già chiuso: guida verso il debito pregresso (area chiusura) -->
+                        <AvvisoFatturaTardiva :condominio-id="props.condominio.id" :data-documento="form.data_documento"
+                            @tardiva="(e) => { if (!form.data_competenza_originaria) form.data_competenza_originaria = e.data }" />
 
                         <!-- Checkbox pregresso -->
                         <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 flex items-start gap-3 transition-colors"
