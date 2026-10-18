@@ -125,7 +125,13 @@
         {{-- Righe Movimenti --}}
         @foreach($timeline as $riga)
         <tr style="border-bottom: 0.3px solid #edf2f7; {{ $loop->even ? 'background: #fafbfc;' : '' }}">
-            <td style="padding: 4px 5px; color: #444; white-space: nowrap; vertical-align: top;">{{ $riga['data'] }}</td>
+            <td style="padding: 4px 5px; color: #444; white-space: nowrap; vertical-align: top;">
+                {{-- Data dell'operazione; la registrazione solo se cade in un altro giorno. --}}
+                {{ $riga['data'] }}
+                @if(!empty($riga['data_registrazione']) && $riga['data_registrazione'] !== $riga['data'])
+                    <br><span style="font-size: 5.5pt; color: #999;">reg. {{ $riga['data_registrazione'] }}</span>
+                @endif
+            </td>
             <td style="padding: 4px 5px; font-family: monospace; font-size: 6.5pt; color: #999; vertical-align: top;">{{ $riga['protocollo'] ?? '—' }}</td>
             <td style="padding: 4px 5px; vertical-align: top;">
                 <div style="font-weight: 600; color: #1e3a5f;">

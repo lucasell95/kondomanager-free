@@ -242,3 +242,35 @@ it('la stampa PDF risponde in entrambe le viste', function () {
             ->assertHeader('Content-Type', 'application/pdf');
     }
 });
+
+it("la data è quella dell'operazione, e ordine e saldo progressivo la seguono", function () {
+    $s = ecAggScenario();
+
+    // Un incasso del 15/02 registrato per ultimo (id più alto, registrazione 18/10): per data di
+    // registrazione finiva in coda; per data dell'operazione è il primo movimento dell'anno.
+    ecAggScrittura($s, 'incasso_rata', '2026-02-15', [
+        ['avere', 1000, $s->immobili[0]->id, $s->rate[1]->id],
+    ]);
+
+    [$espansa, $stats, $saldoIniziale] = ecAggLedger($s);
+    $aggregata = app(EstrattoContoAggregatoService::class)->aggrega($espansa, (int) $saldoIniziale);
+
+    foreach (['per unità' => $espansa, 'aggregata' => $aggregata] as $vista => $timeline) {
+        $prima = $timeline->first();
+
+        expect($prima['avere'])->toBe(1000, $vista)
+            ->and($prima['data'])->toBe('15/02/2026')
+            ->and($prima['data_registrazione'])->toBe('18/10/2026')
+            ->and($prima['saldo'])->toBe((int) $saldoIniziale - 1000)
+            ->and($timeline->last()['saldo'])->toBe($stats['saldo_raw']);
+
+        // Le date non scendono mai lungo la timeline.
+        $date = $timeline->map(fn ($r) => \Illuminate\Support\Carbon::createFromFormat('d/m/Y', $r['data'])->format('Y-m-d'))->all();
+        $ordinate = $date;
+        sort($ordinate);
+        expect($date)->toBe($ordinate);
+    }
+
+    // L'emissione della rata 1 porta la data di emissione, non quella di registrazione.
+    expect($aggregata->firstWhere('dare', 28000)['data'])->toBe('01/03/2026');
+});

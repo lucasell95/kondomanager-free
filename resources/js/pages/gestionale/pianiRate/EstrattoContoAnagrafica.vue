@@ -447,7 +447,12 @@ const getImportoStyle = (riga: any) => {
                                     </div>
                                 </td>
                                 <td class="px-4 py-3 align-top">
-                                    <div class="text-sm font-medium text-gray-700">{{ riga.data }}</div>
+                                    <!-- Data dell'operazione (emissione, pagamento, compensazione); la registrazione
+                                         solo come nota, e solo quando è un giorno diverso. -->
+                                    <div class="text-sm font-medium text-gray-700" :title="trans('gestionale.estratto_conto.date.operazione_help')">{{ riga.data }}</div>
+                                    <div v-if="riga.data_registrazione && riga.data_registrazione !== riga.data" class="text-[10px] text-gray-400 leading-tight">
+                                        {{ trans('gestionale.estratto_conto.date.registrazione', { date: riga.data_registrazione }) }}
+                                    </div>
                                     <div v-if="riga.protocollo" class="mt-1"><Badge variant="outline" class="text-[9px] px-1 h-4 font-mono text-gray-400 border-gray-200">{{ riga.protocollo }}</Badge></div>
                                     <div v-if="riga.n_righe > 1" class="mt-1 text-[10px] text-gray-400" :title="trans('gestionale.estratto_conto.vista.aggregata_help')">
                                         {{ trans('gestionale.estratto_conto.vista.rows', { n: String(riga.n_righe) }) }}
