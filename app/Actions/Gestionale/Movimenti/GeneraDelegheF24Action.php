@@ -166,7 +166,7 @@ class GeneraDelegheF24Action
      * peggio che classificarle nel regime che quasi certamente è il loro. La percentuale
      * registrata, quando c'è, ha comunque la precedenza sul default.
      */
-    private function tipoRitenuta(PagamentoFornitore $pagamento): TipoRitenuta
+    public function tipoRitenuta(PagamentoFornitore $pagamento): TipoRitenuta
     {
         // Lo SCATTO al momento del pagamento ha la precedenza sull'anagrafica viva: il
         // regime che conta è quello applicato allora. Correggere oggi l'anagrafica di un
