@@ -55,6 +55,36 @@ class UpdateEsercizioRequest extends FormRequest
         $validator->after(function ($validator) {
             $esercizio = $this->route('esercizio');
 
+            // ⚠️ **Un esercizio chiuso non si sposta.** Lo stato patrimoniale per esercizio include
+            // gli esercizi «iniziati prima» (StatoPatrimonialeService): cambiare le date di uno chiuso
+            // ne sposta il perimetro e cambia i numeri di un periodo già rendicontato. Anche il
+            // nome resta: è quello stampato sui documenti di quel periodo. Descrizione e note sì.
+            if ($esercizio instanceof \App\Models\Esercizio && $esercizio->stato === 'chiuso') {
+                $stessaData = fn (string $campo) => $this->filled($campo)
+                    && \Carbon\Carbon::parse($this->input($campo))->toDateString() === $esercizio->{$campo}?->toDateString();
+
+                foreach (['data_inizio', 'data_fine'] as $campo) {
+                    if (! $stessaData($campo)) {
+                        $validator->errors()->add($campo, "L'esercizio è chiuso: le sue date non si possono più cambiare.");
+                    }
+                }
+
+                // Senza badare alle maiuscole: il modulo riceve il nome con l'iniziale maiuscola
+                // (EsercizioResource) e lo rimanda così.
+                if (mb_strtolower(trim((string) $this->input('nome'))) !== mb_strtolower(trim((string) $esercizio->nome))) {
+                    $validator->errors()->add('nome', "L'esercizio è chiuso: il nome non si può più cambiare.");
+                }
+
+                // Chiuso con la procedura guidata: si riapre solo annullando la chiusura, che
+                // rimette a posto anche quote e saldi riportati. Riaprirlo dal modulo lascerebbe
+                // il residuo contato due volte (nelle vecchie quote e nel saldo iniziale nuovo).
+                if ($this->input('stato') === 'aperto' && $esercizio->chiusuraEseguita()) {
+                    $validator->errors()->add('stato',
+                        "L'esercizio è stato chiuso con la procedura di passaggio d'esercizio: per riaprirlo usa "
+                        ."«Annulla chiusura» nella pagina del passaggio d'esercizio.");
+                }
+            }
+
             if ($this->input('stato') !== 'aperto') {
                 return;
             }

@@ -173,6 +173,15 @@ class SaldoInizialeController extends Controller
 
         abort_unless($saldo->is_applicato, 400, 'Questo saldo è già libero.');
 
+        // Un saldo «mantenuto» dalla chiusura d'esercizio è bloccato apposta: il debito sta ancora
+        // sulle quote originarie, e liberarlo lo farebbe assorbire da un nuovo piano (doppio
+        // addebito). Anche i saldi del vecchio esercizio chiusi perché riportati restano chiusi.
+        abort_if(
+            $saldo->eDaChiusura(),
+            403,
+            'Questo saldo è gestito dalla chiusura d\'esercizio: per cambiarlo annulla la chiusura.'
+        );
+
         $saldo->update(['is_applicato' => false]);
 
         Log::info('Sblocco manuale di un saldo senza titolare', [
@@ -200,6 +209,12 @@ class SaldoInizialeController extends Controller
         // di cancellare un saldo LIBERO solo perché un altro saldo della stessa
         // gestione era finito in un piano — cioè impedire la correzione in
         // corso di gestione, che è un bisogno legittimo e diverso.
+        abort_if(
+            $saldo->eDaChiusura(),
+            403,
+            'Questo saldo è stato generato dalla chiusura d\'esercizio: per eliminarlo annulla la chiusura.'
+        );
+
         abort_if(
             $saldo->eBloccato(),
             403,

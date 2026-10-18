@@ -192,7 +192,12 @@ class EstrattoContoAnagraficaController extends Controller
         $movimenti = $anagrafica->movimenti()
             ->whereHas('scrittura', function($q) use ($condominio, $esercizio) {
                 $q->where('condominio_id', $condominio->id)
-                  ->where('esercizio_id', $esercizio->id);
+                  ->where('esercizio_id', $esercizio->id)
+                  // Le scritture di riporto della chiusura d'esercizio (tipo `chiusura`) chiudono
+                  // le quote vecchie dentro il nuovo esercizio: il loro effetto è già il saldo
+                  // iniziale qui sopra, e contarle lo toglierebbe una seconda volta.
+                  // Vedi `App\Actions\Gestionale\Chiusura\ChiudiEsercizioAction`.
+                  ->whereNotIn('tipo_movimento', \App\Services\Gestionale\Chiusura\ResiduiEsercizioService::TIPI_ESCLUSI);
             })
             ->whereIn('conto_contabile_id', $contiCondomini)
             ->whereNull('cassa_id')

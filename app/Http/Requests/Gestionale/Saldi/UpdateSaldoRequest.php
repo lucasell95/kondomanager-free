@@ -49,6 +49,18 @@ class UpdateSaldoRequest extends FormRequest
                     return;
                 }
 
+                // Generato dalla chiusura d'esercizio: ha una scrittura di riporto gemella (o quote
+                // ancora aperte che lo giustificano). Cambiarlo da solo farebbe pagare il
+                // condòmino due volte, o mai. Si corregge annullando la chiusura.
+                if ($saldo->eDaChiusura()) {
+                    $validator->errors()->add(
+                        'saldo',
+                        'Questo saldo è stato generato dalla chiusura d\'esercizio: per correggerlo annulla la chiusura '
+                        .'(Esercizi → Passaggio d\'esercizio) e rieseguila.'
+                    );
+                    return;
+                }
+
                 // Muro contabile: la soglia è l'EMISSIONE, non la generazione.
                 // Finché il piano non è emesso né incassato resta interamente
                 // riscrivibile — «Ricalcola» lo dimostra — quindi il saldo che

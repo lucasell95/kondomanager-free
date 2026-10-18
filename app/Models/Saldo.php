@@ -37,7 +37,9 @@ class Saldo extends Model
         'origine',        // 'manuale', 'importato', 'automatico'
         'is_applicato',   // Se true, il saldo è bloccato perché già inserito in un piano rate (Novità v1.9)
         'fornitore_id',
-        'descrizione'
+        'descrizione',
+        // La chiusura d'esercizio che l'ha generato (NULL = inserito a mano o importato).
+        'chiusura_esercizio_id',
     ];
 
     /**
@@ -122,6 +124,25 @@ class Saldo extends Model
     public function immobile(): BelongsTo
     { 
         return $this->belongsTo(Immobile::class); 
+    }
+
+    /**
+     * Saldo generato dalla chiusura d'esercizio (ancora valida)?
+     *
+     * Non si modifica, non si elimina e non si sblocca a mano: un saldo riportato ha la sua
+     * scrittura di riporto gemella, uno «mantenuto» le quote ancora aperte che lo giustificano.
+     * Toccarlo da solo farebbe pagare due volte il condòmino (o mai). Si corregge annullando la
+     * chiusura.
+     */
+    public function eDaChiusura(): bool
+    {
+        if ($this->chiusura_esercizio_id === null) {
+            return false;
+        }
+
+        return \App\Models\Gestionale\ChiusuraEsercizio::whereKey($this->chiusura_esercizio_id)
+            ->where('stato', \App\Models\Gestionale\ChiusuraEsercizio::STATO_ESEGUITA)
+            ->exists();
     }
 
     // --- HELPER METODS ---

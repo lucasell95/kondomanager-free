@@ -457,6 +457,9 @@ Route::prefix('/gestionale/{condominio}')
     Route::post('/f24/{delega}/annulla', [DelegaF24Controller::class, 'annulla'])
         ->name('f24.annulla');
 
+    // --- PASSAGGIO D'ESERCIZIO GUIDATO (area chiusura) ---
+    require __DIR__.'/gestionale_chiusura.php';
+
     // --- DETTAGLIO SCRITTURA CONTABILE (v1.9.1-beta.7) ---
     Route::get('/scritture/{scrittura}', [ScritturaContabileController::class, 'show'])
         ->name('scritture.show');
