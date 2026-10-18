@@ -15,6 +15,7 @@ use App\Exceptions\Pagamenti\RitenutaIncoerenteException;
 use App\Exceptions\Pagamenti\IllegalCashAmountException;
 use App\Exceptions\Pagamenti\InsufficientFundsException;
 use App\Exceptions\Pagamenti\OverpaymentException;
+use App\Exceptions\Pagamenti\PagamentoContantiFornitoreException;
 use App\Exceptions\Pagamenti\PagamentoModificaVietataException;
 use App\Exceptions\Pagamenti\PossibilePagamentoDuplicatoException;
 use App\Http\Controllers\Controller;
@@ -254,6 +255,11 @@ class PagamentoFornitoreController extends Controller
             return back()->withErrors([
                 'possibile_duplicato' => $e->getMessage(),
             ]);
+
+        } catch (PagamentoContantiFornitoreException $e) {
+            // Contanti verso il fornitore (art. 1129 c. 7 c.c., art. 25-ter c. 2-ter DPR 600/1973).
+            // Bypassabile con conferma_contanti_fornitore=true + motivazione.
+            return back()->withErrors(['contanti_fornitore' => $e->getMessage()]);
 
         } catch (InsufficientFundsException $e) {
             // Saldo conto insufficiente. Bypassabile con allow_overdraft=true
@@ -570,6 +576,9 @@ class PagamentoFornitoreController extends Controller
 
         } catch (PossibilePagamentoDuplicatoException $e) {
             return back()->withErrors(['possibile_duplicato' => $e->getMessage()]);
+
+        } catch (PagamentoContantiFornitoreException $e) {
+            return back()->withErrors(['contanti_fornitore' => $e->getMessage()]);
 
         } catch (InsufficientFundsException $e) {
             return back()->withErrors([

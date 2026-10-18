@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import { useForm, Head, Link, router } from '@inertiajs/vue3';
 import GestionaleLayout from '@/layouts/GestionaleLayout.vue';
+import ModalContantiFornitore from '@/components/gestionale/movimenti/pagamenti/ModalContantiFornitore.vue';
 import PageHeaderGuide from '@/components/PageHeaderGuide.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -119,6 +120,7 @@ const form = useForm({
     allow_overpayment:              false,
     iban_confermato_manualmente:    false,
     conferma_duplicato_verificato:  false,
+    conferma_contanti_fornitore:    false,
     note_override:                  props.pagamento.note_override || null,
     causale_bonifico:               (props.pagamento as any).causale_bonifico || '',
     riferimento_bancario:           (props.pagamento as any).riferimento_bancario || '',
@@ -153,6 +155,10 @@ const modificaVietataMsg = ref('');
 const showFiscalYearClosedModal = ref(false);
 const fiscalYearClosedMsg = ref('');
 
+// Contanti verso il fornitore (art. 1129 c. 7 c.c.): bypassabile con motivazione.
+const showContantiFornitoreModal = ref(false);
+const contantiFornitoreMsg = ref('');
+
 const showIllegalCashModal = ref(false);
 const illegalCashMsg = ref('');
 
@@ -186,7 +192,7 @@ const rifiutoMotivi = ref<string[]>([]);
  * Rispetto a `PagamentoNew` c'è in più `modifica_vietata`, che esiste solo in modifica.
  */
 const CHIAVI_CON_FINESTRA_PROPRIA = [
-    'iban_discrepanza', 'possibile_duplicato',
+    'iban_discrepanza', 'possibile_duplicato', 'contanti_fornitore',
     'insufficient_funds', 'insufficient_funds_data',
     'overpayment', 'overpayment_data',
     'fiscal_year_closed', 'illegal_cash',
@@ -280,6 +286,12 @@ const handleSubmit = () => {
                 showDuplicateConfirmModal.value = true;
                 return;
             }
+            // ── Bypassabili: Contanti verso il fornitore ──
+            if (errors.contanti_fornitore) {
+                contantiFornitoreMsg.value = errors.contanti_fornitore;
+                showContantiFornitoreModal.value = true;
+                return;
+            }
             // ── Bypassabili: Saldo insufficiente ──
             if (errors.insufficient_funds) {
                 insufficientFundsMsg.value = errors.insufficient_funds;
@@ -358,6 +370,15 @@ const confirmIban = () => {
 const confirmDuplicate = () => {
     form.conferma_duplicato_verificato = true;
     showDuplicateConfirmModal.value = false;
+    handleSubmit();
+};
+
+// Contanti verso il fornitore: la motivazione si aggiunge a quella di un eventuale altro
+// override, invece di sostituirla.
+const confirmContantiFornitore = (nota: string) => {
+    form.conferma_contanti_fornitore = true;
+    form.note_override = [form.note_override, `Contanti: ${nota}`].filter(Boolean).join(' | ');
+    showContantiFornitoreModal.value = false;
     handleSubmit();
 };
 
@@ -1055,6 +1076,13 @@ const pageGuides: never[] = [];
                 </div>
             </Transition>
         </Teleport>
+
+        <!-- ── CONTANTI VERSO IL FORNITORE — bypassabile con motivazione (art. 1129 c. 7 c.c.) ── -->
+        <ModalContantiFornitore
+            v-model:open="showContantiFornitoreModal"
+            :messaggio="contantiFornitoreMsg"
+            @conferma="confirmContantiFornitore"
+        />
 
         <!-- ── 5. LIMITE CONTANTI ANTIRICICLAGGIO — non bypassabile ── -->
         <Teleport to="body">

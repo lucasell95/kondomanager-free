@@ -729,9 +729,12 @@ it('antiriciclaggio: contanti 4999€ passano (sotto soglia)', function () {
         $condominio->id
     );
 
-    // Deve passare senza eccezione
+    // Deve passare senza eccezione. Dal 18/10/2026 i contanti verso un fornitore chiedono anche
+    // la conferma esplicita dell'art. 1129 c. 7 c.c. (vedi ContantiVersoFornitoreTest): qui la si
+    // dà, perché ciò che si prova è la soglia antiriciclaggio.
     $pagamento = $service->registraPagamento(datiPagamento($ctx, $fattura, [
         'metodo_pagamento' => MetodoPagamento::CONTANTI->value,
+        'conferma_contanti_fornitore' => true,
         'allocazioni' => [[
             'fattura_id' => $fattura->id,
             'tipo' => TipoAllocazioneFattura::PAGAMENTO->value,

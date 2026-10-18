@@ -114,6 +114,8 @@ class StorePagamentoFornitoreRequest extends FormRequest
             'allow_overpayment'             => ['boolean'],
             'iban_confermato_manualmente'    => ['boolean'],
             'conferma_duplicato_verificato' => ['boolean'],
+            // Contanti verso il fornitore (art. 1129 c. 7 c.c.): conferma esplicita con motivazione.
+            'conferma_contanti_fornitore'   => ['boolean'],
 
             // --- AUDIT TRAIL OVERRIDE ---
             // Obbligatoria a livello UI (min 10 char) quando si bypassa un blocco.
