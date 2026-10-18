@@ -50,6 +50,11 @@ trait HasProtocolNumber
             // `PREFISSO-ANNO-NNNNN`. Con `AP` il generatore produrrebbe `AP-2026-00001`,
             // che accanto a `AP-000011` confonde due famiglie invece di unirle.
             'apertura'                    => 'APE',
+            // Tre tipi in uso che cadevano in `SCR` («non classificata»): l'emissione delle
+            // rate, la compensazione con un credito e l'accantonamento.
+            'emissione_rata'              => 'EMI',
+            'storno_credito'              => 'CMP',
+            'accantonamento'              => 'ACC',
             default                       => 'SCR',
         };
 
