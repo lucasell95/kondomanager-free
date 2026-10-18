@@ -41,3 +41,6 @@ deploy/nas/nas.conf
 deploy/nas/.secrets
 deploy/nas/data/
 deploy/nas/install.log
+deploy/nas/codice/
+deploy/nas/codice.tar.gz
+deploy/nas/azione

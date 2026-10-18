@@ -7,3 +7,6 @@ LAN_IF="eth0"
 LAN_SUBNET="192.0.2.0/24"
 LAN_GATEWAY="192.0.2.1"
 WATCHTOWER_INTERVAL=300
+# Modalità sviluppo (facoltativa): codice montato da questa cartella, modifiche visibili subito.
+# Caricare codice.tar.gz accanto a install.sh; lasciare vuoto per la modalità normale con Watchtower.
+DEV_CODE_DIR=""

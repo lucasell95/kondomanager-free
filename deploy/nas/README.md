@@ -12,3 +12,11 @@ quando viene pubblicata una nuova immagine.
 
 Dati persistenti in `data/` accanto allo script: `db/`, `storage/`, `config/` (contiene `.env` con `APP_KEY`).
 Password del database generate al primo avvio in `.secrets` (permessi 600).
+
+## Modalità sviluppo
+
+Con `DEV_CODE_DIR="codice"` in `nas.conf` il container monta `app`, `config`, `database`, `lang`,
+`resources`, `routes` e `public/build` da quella cartella, con `KONDO_DEV=1` (niente cache, PHP riletto
+a ogni richiesta) e senza Watchtower. Per aggiornare in blocco: caricare `codice.tar.gz` e un file
+`azione` contenente `codice`, poi eseguire lo script (svuota le cache e lancia le migrazioni).
+I singoli file si possono anche sovrascrivere direttamente nella cartella.

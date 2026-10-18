@@ -16,9 +16,37 @@ IMAGE="ghcr.io/OWNER/kondomanager-nas:latest"
 APP_IP=""; APP_MAC=""; APP_HOSTNAME="condominio"; APP_URL=""
 LAN_IF="eth0"; LAN_SUBNET=""; LAN_GATEWAY=""
 WATCHTOWER_INTERVAL=300
+# Modalità sviluppo: se DEV_CODE_DIR è valorizzato (es. "codice"), il codice dell'app viene montato da
+# quella cartella e le modifiche caricate si vedono subito (niente cache, niente Watchtower).
+DEV_CODE_DIR=""
+DEV_MOUNTS="app config database lang resources routes public/build"
 [ -f nas.conf ] && . ./nas.conf
 : "${APP_IP:?imposta APP_IP in nas.conf}" "${LAN_SUBNET:?imposta LAN_SUBNET}" "${LAN_GATEWAY:?imposta LAN_GATEWAY}"
 APP_URL="${APP_URL:-http://$APP_HOSTNAME}"
+
+# --- Azione richiesta (file "azione" accanto allo script, letto una volta): install (default) | codice
+AZIONE=install
+if [ -f azione ]; then AZIONE="$(tr -d ' \r\n' < azione)"; rm -f azione; fi
+echo "--- azione: $AZIONE"
+
+# Codice per la modalità sviluppo: codice.tar.gz caricato accanto allo script sostituisce le cartelle montate
+if [ -n "$DEV_CODE_DIR" ] && [ -f codice.tar.gz ]; then
+  rm -rf "$DEV_CODE_DIR.new" && mkdir -p "$DEV_CODE_DIR.new" "$DEV_CODE_DIR"
+  tar xzf codice.tar.gz -C "$DEV_CODE_DIR.new" && rm -f codice.tar.gz
+  # Aggiornamento sul posto (rsync): i bind mount del container restano validi
+  for d in $DEV_MOUNTS; do
+    [ -d "$DEV_CODE_DIR.new/$d" ] || continue
+    mkdir -p "$DEV_CODE_DIR/$d"
+    rsync -a --delete "$DEV_CODE_DIR.new/$d/" "$DEV_CODE_DIR/$d/"
+  done
+  rm -rf "$DEV_CODE_DIR.new"
+  chmod -R a+rX "$DEV_CODE_DIR"
+  echo "--- codice aggiornato in $DEV_CODE_DIR"
+fi
+if [ "$AZIONE" = "codice" ]; then
+  docker exec kondo_app su -s /bin/bash www-data -c "cd /var/www && php artisan optimize:clear && php artisan migrate --force"
+  echo "===== $(date '+%F %T') fine install.sh (codice) OK"; exit 0
+fi
 
 # --- Segreti DB (una sola volta, solo root) ---
 if [ ! -f .secrets ]; then
@@ -56,8 +84,15 @@ fi
 # --- Applicazione ---
 docker rm -f kondo_app >/dev/null 2>&1 || true
 MACOPT=""; [ -n "$APP_MAC" ] && MACOPT="--mac-address $APP_MAC"
+DEVOPT=""; WTLABEL="--label com.centurylinklabs.watchtower.enable=true"
+if [ -n "$DEV_CODE_DIR" ]; then
+  [ -d "$DEV_CODE_DIR" ] || { echo "manca la cartella $DEV_CODE_DIR (caricare codice.tar.gz)"; exit 1; }
+  DEVOPT="-e KONDO_DEV=1"; WTLABEL="--label com.centurylinklabs.watchtower.enable=false"
+  for d in $DEV_MOUNTS; do [ -d "$DEV_CODE_DIR/$d" ] && DEVOPT="$DEVOPT -v $BASE/$DEV_CODE_DIR/$d:/var/www/$d:ro"; done
+  echo "--- modalità sviluppo: $DEVOPT"
+fi
 docker run -d --name kondo_app --restart unless-stopped -m 700m \
-  --label com.centurylinklabs.watchtower.enable=true \
+  $WTLABEL $DEVOPT \
   --network kondo_lan --ip "$APP_IP" $MACOPT --hostname "$APP_HOSTNAME" \
   -e APP_URL="$APP_URL" -e DB_HOST=kondo_db -e DB_DATABASE=kondomanager \
   -e DB_USERNAME=kondo -e DB_PASSWORD="$DB_PASS" \
