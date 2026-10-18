@@ -35,9 +35,11 @@ uses(RefreshDatabase::class);
 
 function ecAggScenario(): object
 {
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'Accesso pannello amministratore', 'guard_name' => 'web']);
     $role = Role::firstOrCreate(['name' => 'amministratore', 'guard_name' => 'web']);
     $user = User::factory()->create();
     $user->assignRole($role);
+    $user->givePermissionTo('Accesso pannello amministratore');
 
     $condominio = Condominio::create([
         'nome' => 'Condominio Vista Aggregata', 'uuid' => (string) Str::uuid(),
@@ -57,6 +59,8 @@ function ecAggScenario(): object
         'email' => 'rossi.aggregata@test.it', 'indirizzo' => 'Via Verdi 1', 'cap' => '00100',
         'citta' => 'Roma', 'provincia' => 'RM', 'codice_fiscale' => 'TSTTST80A01H501X',
     ]);
+    // L'anagrafica è legata al condominio dalla tabella pivot: senza, la rotta annidata risponde 404.
+    $condominio->anagrafiche()->attach($anagrafica->id);
 
     $immobili = [];
     foreach (['Appartamento' => '1', 'Cantina' => 'C1', 'Garage' => 'G1'] as $nome => $interno) {
