@@ -55,12 +55,8 @@ jobs:
           cp .env.example .env
           php artisan key:generate
           set +e
-          php artisan test --compact --log-junit junit.xml > out.txt 2>&1
+          php artisan test --compact --log-junit junit.xml
           rc=$?
-          tail -c 6000 out.txt | sed 's/\x1b\[[0-9;]*m//g' > tail.txt
-          echo "::error title=DIAGNOSTICA coda output::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' tail.txt)"
-          grep -n -B2 -A25 -i "fatal\|FAIL\|Error" out.txt | sed 's/\x1b\[[0-9;]*m//g' | head -c 8000 > err.txt || true
-          echo "::error title=DIAGNOSTICA errori::$(sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g' err.txt)"
           set -e
           [ -f junit.xml ] || { echo "::error::nessun report JUnit, i test non sono partiti"; exit $rc; }
           # Fallisce solo per test nuovi rispetto ai fallimenti noti della release ufficiale
