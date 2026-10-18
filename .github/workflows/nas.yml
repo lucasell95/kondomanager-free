@@ -1,0 +1,88 @@
+name: NAS – controlli, test e immagine
+
+on:
+  push:
+    branches: [nas, 'feature/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Release ufficiale su cui si appoggiano le modifiche locali
+  UPSTREAM_BASE: f33f2ff
+  IMAGE: ghcr.io/${{ github.repository_owner }}/kondomanager-nas
+
+jobs:
+  privacy:
+    name: Privacy (nessun dato personale o segreto)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Controllo dati personali
+        run: bash .github/scripts/privacy-check.sh "$UPSTREAM_BASE" HEAD
+      - name: Gitleaks (segreti)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
+
+  test:
+    name: Test (PHP 8.4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, gd, intl, mbstring, zip, pdo_sqlite, sqlite3
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Dipendenze
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci --no-audit --no-fund
+      - name: Build frontend
+        run: npm run build
+      - name: Test
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan test --compact
+
+  image:
+    name: Immagine Docker per il NAS
+    needs: [privacy, test]
+    if: github.ref == 'refs/heads/nas'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/nas/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.description=KondoManager per NAS Synology (fork con modifiche locali)
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

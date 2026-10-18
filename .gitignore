@@ -35,3 +35,9 @@ docs/*
 !docs/docker_local_dev.*.md
 !docs/synology_nas_install.*.md
 !docs/plesk_cronjob_guide.md
+
+# ─── Deploy NAS: file locali con parametri di rete, segreti e dati ───────────
+deploy/nas/nas.conf
+deploy/nas/.secrets
+deploy/nas/data/
+deploy/nas/install.log

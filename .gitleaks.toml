@@ -1,0 +1,7 @@
+# Configurazione gitleaks: regole standard + allowlist per valori di esempio del progetto
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valori di esempio pubblici del progetto upstream"
+paths = ['''resources/data/''', '''package-lock\.json''', '''composer\.lock''']

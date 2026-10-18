@@ -1,0 +1,9 @@
+# Copiare in nas.conf (stessa cartella di install.sh) e adattare. nas.conf NON va versionato.
+IMAGE="ghcr.io/OWNER/kondomanager-nas:latest"
+APP_IP="192.0.2.10"          # IP libero fuori dal range DHCP del router
+APP_MAC=""                   # opzionale: MAC fisso (es. 02:42:xx:xx:xx:xx) per riconoscerlo nel router
+APP_HOSTNAME="condominio"
+LAN_IF="eth0"
+LAN_SUBNET="192.0.2.0/24"
+LAN_GATEWAY="192.0.2.1"
+WATCHTOWER_INTERVAL=300
