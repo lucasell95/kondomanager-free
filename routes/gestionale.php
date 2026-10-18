@@ -38,6 +38,7 @@ use App\Http\Controllers\Gestionale\PianiRate\FetchFattureStraordinarieControlle
 use App\Http\Controllers\Gestionale\PianiRate\PianoRatePrintController;
 use App\Http\Controllers\Gestionale\PianiRate\PianoRateController;
 use App\Http\Controllers\Gestionale\PianiRate\PianoRateGenerationController;
+use App\Http\Controllers\Gestionale\PianiRate\ProspettoRateUnificatoController;
 use App\Http\Controllers\Gestionale\Saldi\SaldoInizialeController;
 use App\Http\Controllers\Gestionale\Scale\ScalaController;
 use App\Http\Controllers\Gestionale\Struttura\StrutturaController;
@@ -254,6 +255,16 @@ Route::prefix('/gestionale/{condominio}')
     
     Route::put('esercizi/{esercizio}/piani-conti/{pianoConto}/conti/{conto}/aggiorna-tabella/{tabella}', AggiornaTabellaController::class)
         ->name('esercizi.piani-conti.conti.aggiorna-tabella');
+
+    // Prospetto rate unificato: per ogni condòmino, le rate di tutti i piani dell'esercizio sommate
+    // per data di scadenza. Sola lettura.
+    // ⚠️ Va registrata **prima** della resource qui sotto: `piani-rate/prospetto-unificato` ha la
+    // stessa forma di `piani-rate/{pianoRate}`, e la prima rotta che combacia vince.
+    Route::get('esercizi/{esercizio}/piani-rate/prospetto-unificato', [ProspettoRateUnificatoController::class, 'show'])
+        ->name('esercizi.piani-rate.prospetto-unificato');
+
+    Route::get('esercizi/{esercizio}/piani-rate/prospetto-unificato/print', [ProspettoRateUnificatoController::class, 'print'])
+        ->name('esercizi.piani-rate.prospetto-unificato.print');
 
     // `only()` e non un `resource` intero: `PianoRateController` non implementa `edit` né
     // `update` — un piano rate non si modifica in quel modo, si rigenera (`regenerate`) o se ne
