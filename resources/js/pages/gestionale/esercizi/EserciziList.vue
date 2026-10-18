@@ -49,9 +49,9 @@ const pageGuides = [
     colorVariant: 'emerald' as const
   },
   {
-    title: 'Chiusura Automatizzata',
-    description: 'Il wizard di fine anno (in arrivo prossimamente) si occuperà di creare il nuovo esercizio e calcolare in automatico i saldi pregressi (Rata 0).',
-    icon: Lock, // L'icona del lucchetto qui è perfetta perché suggerisce che la funzione è "bloccata/protetta" per ora
+    title: 'Passaggio d\'esercizio guidato',
+    description: 'Dal menu dell\'esercizio aperto, «Chiudi e apri il successivo»: controlli, residui per condòmino riportati una volta sola (Rata 0), nuove gestioni e numerazione per esercizio.',
+    icon: Lock,
     colorVariant: 'amber' as const
   }
 ];

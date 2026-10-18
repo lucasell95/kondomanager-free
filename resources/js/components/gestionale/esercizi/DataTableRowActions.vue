@@ -3,7 +3,7 @@
 import { Link } from "@inertiajs/vue3"
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { FilePenLine, MoreHorizontal } from 'lucide-vue-next'
+import { FilePenLine, MoreHorizontal, RotateCcw } from 'lucide-vue-next'
 import { usePermission } from "@/composables/permissions"
 import type { Esercizio } from '@/types/gestionale/esercizi'
 import type { Building } from '@/types/buildings'
@@ -34,6 +34,18 @@ const { generateRoute } = usePermission()
         </Link>
       </DropdownMenuItem>
 
+      <!-- Passaggio d'esercizio guidato: dall'esercizio aperto si chiude e si apre il successivo;
+           da uno chiuso con la procedura se ne vede il riepilogo (e lo si può annullare). -->
+      <DropdownMenuItem>
+        <Link
+          :href="route(generateRoute('gestionale.esercizi.chiusura.show'), { condominio: condominio.id, esercizio: esercizio.id })"
+          class="flex items-center gap-2"
+        >
+          <RotateCcw class="w-4 h-4 text-xs" />
+          {{ esercizio.stato === 'aperto' ? 'Chiudi e apri il successivo' : "Passaggio d'esercizio" }}
+        </Link>
+      </DropdownMenuItem>
+
       <!-- Eliminazione rimossa dall'interfaccia.
            L'esercizio è il contenitore di tutto il libro giornale del periodo:
            la FK `scritture_contabili.esercizio_id` è cascadeOnDelete, quindi
@@ -41,7 +53,7 @@ const { generateRoute } = usePermission()
            Il muro contabile lato server resta come difesa in profondità, ma un
            pulsante che offre un'operazione irreversibile su un pilastro della
            contabilità non ha ragione di esistere nell'uso quotidiano.
-           La MODIFICA resta: è l'unico modo per chiudere un esercizio. -->
+           La MODIFICA resta; per chiudere c'è anche il passaggio d'esercizio guidato. -->
     </DropdownMenuContent>
   </DropdownMenu>
 
