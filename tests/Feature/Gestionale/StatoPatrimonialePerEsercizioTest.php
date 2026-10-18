@@ -124,3 +124,35 @@ test('senza esercizio il prospetto resta sull\'intero giornale', function () {
         ->and($sp['risultato_esercizi_precedenti'])->toBe(0)
         ->and($sp['quadra'])->toBeTrue();
 })->group('stato-patrimoniale');
+
+test("la diagnosi dello sbilancio vede una scrittura rotta dell'esercizio precedente", function () {
+    $s = spEsScenario();
+
+    \Spatie\Permission\Models\Permission::firstOrCreate(['name' => 'Accesso pannello amministratore', 'guard_name' => 'web']);
+    $ruolo = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'amministratore', 'guard_name' => 'web']);
+    $ruolo->givePermissionTo('Accesso pannello amministratore');
+    $user = \App\Models\User::factory()->create();
+    $user->assignRole($ruolo);
+
+    // Una scrittura del 2026/27 con una riga sola: dare senza avere.
+    $conto = DB::table('conti_contabili')->where('condominio_id', $s->condominio->id)->where('codice', '1010')->value('id');
+    $rotta = DB::table('scritture_contabili')->insertGetId([
+        'condominio_id' => $s->condominio->id, 'esercizio_id' => $s->primo->id,
+        'data_registrazione' => '2027-01-10', 'data_competenza' => '2027-01-10',
+        'numero_protocollo' => 'SCR-ROTTA', 'causale' => 'Rotta', 'tipo_movimento' => 'giroconto',
+        'stato' => 'registrata', 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::table('righe_scritture')->insert([
+        'scrittura_id' => $rotta, 'conto_contabile_id' => $conto, 'tipo_riga' => 'dare', 'importo' => 1_000,
+        'created_at' => now(), 'updated_at' => now(),
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('admin.gestionale.esercizi.scritture.index', [$s->condominio, $s->secondo]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('quadratura.quadra', false)
+            ->where('quadratura.risultato_esercizi_precedenti', -50_000)
+            ->has('diagnosi.scritture_non_quadrate', 1)
+            ->where('diagnosi.scritture_non_quadrate.0.id', $rotta));
+})->group('stato-patrimoniale');

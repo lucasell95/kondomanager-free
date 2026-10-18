@@ -177,8 +177,11 @@ class ScritturaContabileController extends Controller
      */
     private function diagnosiSbilancio(Condominio $condominio, Esercizio $esercizio): array
     {
+        // Gli stessi esercizi che la quadratura somma: i patrimoniali sono cumulativi
+        // (StatoPatrimonialeService), quindi una scrittura rotta di un esercizio precedente
+        // sbilancia anche questo. Cercando solo nell'esercizio corrente la diagnosi non la vedeva.
         $scrittureNonQuadrate = ScritturaContabile::where('condominio_id', $condominio->id)
-            ->where('esercizio_id', $esercizio->id)
+            ->whereHas('esercizio', fn ($q) => $q->whereDate('data_inizio', '<=', $esercizio->data_inizio))
             ->with('righe')
             ->get()
             ->filter(fn (ScritturaContabile $s) => $s->righe->where('tipo_riga', 'dare')->sum('importo')
