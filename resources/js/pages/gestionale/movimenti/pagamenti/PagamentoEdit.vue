@@ -216,7 +216,7 @@ const metodiPagamento = [
 ];
 
 const tipiDetrazione = [
-    { value: 'ristrutturazione', label: 'Ristrutturazione edilizia (50%)' },
+    { value: 'ristrutturazione', label: 'Ristrutturazione edilizia (50% / 36%)' },
     { value: 'ecobonus',         label: 'Ecobonus / Riqualificazione energetica' },
     { value: 'sismabonus',       label: 'Sismabonus' },
     { value: 'superbonus',       label: 'Superbonus' },

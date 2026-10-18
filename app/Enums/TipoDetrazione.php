@@ -62,14 +62,26 @@ enum TipoDetrazione: string
     /**
      * Percentuale di detrazione standard (indicativa, può variare per anno/soglia).
      * NON usare per calcoli fiscali definitivi — sempre verificare normativa aggiornata.
+     *
+     * Aggiornate il 18/10/2026 (erano 50%, 50-65-90%, 50-70-80%, 110-90%). Per le spese 2025 e 2026
+     * ristrutturazione, ecobonus e sismabonus hanno la stessa aliquota: 50% se l'unità è
+     * l'abitazione principale del titolare del diritto, 36% negli altri casi (L. 207/2024,
+     * prorogata per il 2026 dalla L. 199/2025 art. 1 c. 22); per il 2027 sono già previsti 36% e
+     * 30%. Le maggiorazioni del sismabonus (70-85%) valevano fino al 2024. Fonti: EC News e
+     * NotaiOnline (il sito dell'Agenzia non era raggiungibile).
+     *
+     * [INCERTO] Il superbonus nel 2026: dopo il 65% del 2025, riservato agli interventi già avviati
+     * nei casi ammessi, resta solo per situazioni particolari — non confermato da fonte ufficiale.
+     * [INCERTO] Per le parti comuni, quale delle due aliquote spetti a ciascun condòmino (in base
+     * all'uso della sua unità).
      */
     public function percentualeDetrazione(): string
     {
         return match($this) {
-            self::RISTRUTTURAZIONE => '50%',
-            self::ECOBONUS         => '50%-65%-90%',
-            self::SISMABONUS       => '50%-70%-80%',
-            self::SUPERBONUS       => '110%-90%',
+            self::RISTRUTTURAZIONE => '50% abitazione principale / 36% altri (2025-2026); 36% / 30% nel 2027',
+            self::ECOBONUS         => '50% abitazione principale / 36% altri (2025-2026); 36% / 30% nel 2027',
+            self::SISMABONUS       => '50% abitazione principale / 36% altri (2025-2026); 36% / 30% nel 2027',
+            self::SUPERBONUS       => 'Residuale: 65% nel 2025 solo per i casi ammessi; 2026 da verificare',
             self::ALTRO            => 'Variabile',
         };
     }
