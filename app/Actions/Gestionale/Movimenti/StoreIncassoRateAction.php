@@ -160,7 +160,8 @@ class StoreIncassoRateAction
             }
 
             if (!$gestioneId) {
-                $gestioneId = $esercizio->gestioni()->first()->id;
+                $gestioneId = $esercizio->gestioni()->first()?->id
+                    ?? throw new \App\Exceptions\Gestionale\IncassoSenzaGestioneException();
             }
 
             // VARIABILI DI CONTROLLO CASSA

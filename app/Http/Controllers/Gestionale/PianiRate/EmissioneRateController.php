@@ -73,6 +73,12 @@ class EmissioneRateController extends Controller
         ]);
 
         $esercizio = $this->getEsercizioCorrente($condominio);
+
+        // Senza esercizio aperto l'emissione falliva più sotto con «errore tecnico».
+        if (! $esercizio) {
+            return back()->with($this->flashError('Non c\'è un esercizio aperto in cui registrare l\'emissione. Apri l\'esercizio e riprova.'));
+        }
+
         $inviaNotifiche = $request->boolean('invia_notifiche', true); // Default a true se non passato
         
         $contoCrediti = ContoContabile::where('condominio_id', $condominio->id)

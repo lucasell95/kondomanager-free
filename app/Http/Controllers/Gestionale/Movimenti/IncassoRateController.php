@@ -193,8 +193,18 @@ class IncassoRateController extends Controller
      */
     public function store(StoreIncassoRateRequest $request, Condominio $condominio, StoreIncassoRateAction $action) 
     {
+        // Senza un esercizio aperto (tutti chiusi, per esempio fra la chiusura di un esercizio e
+        // l'apertura del successivo) l'incasso non ha dove andare: prima era un errore 500.
+        $esercizio = $this->getEsercizioCorrente($condominio);
+
+        if (! $esercizio) {
+            return back()->withInput()->withErrors([
+                'data_pagamento' => 'Non c\'è un esercizio aperto in cui registrare l\'incasso. Apri l\'esercizio dalla sezione Esercizi e riprova.',
+            ]);
+        }
+
         try {
-            $action->execute($request->validated(), $condominio, $this->getEsercizioCorrente($condominio));
+            $action->execute($request->validated(), $condominio, $esercizio);
         } catch (IncassoNonRegistrabileException $e) {
             // Conflitto di dominio, non guasto: l'incasso **non si poteva registrare**, e niente è
             // stato scritto. Si torna al modulo compilato con il motivo, invece della pagina 500
