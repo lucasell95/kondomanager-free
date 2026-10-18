@@ -20,6 +20,7 @@ use App\Models\Gestionale\RataQuote;
 use App\Models\Gestionale\ScritturaContabile;
 use App\Services\Gestionale\InboxService;
 use App\Services\Gestionale\IncassoRateService;
+use App\Services\Gestionale\SincronizzaScadenziarioIncasso;
 use App\Traits\HandleFlashMessages;
 use App\Traits\HasCondomini;
 use App\Traits\HasEsercizio;
@@ -219,121 +220,13 @@ class IncassoRateController extends Controller
             return back()->withInput()->withErrors([$e->campo() => $e->getMessage()]);
         }
 
-        // --- AGGIORNAMENTO EVENTI SCADENZIARIO ---
-        $paganteId = $request->input('pagante_id');
-        $dettaglioPagamenti = $request->input('dettaglio_pagamenti', []);
-
-        // FIX: Consideriamo SOLO i pagamenti ordinari (importo > 0)
-        $quoteOrdinarie = collect($dettaglioPagamenti)
-            ->filter(fn($item) => $item['importo'] > 0)
-            ->pluck('rata_id')
-            ->filter()
-            ->toArray();
-
-        $rataIdsReali = [];
-        if (!empty($quoteOrdinarie)) {
-            // FIX: Convertiamo ID Quote -> ID Rate (Padri)
-            $rataIdsReali = RataQuote::whereIn('id', $quoteOrdinarie)
-                ->pluck('rata_id')
-                ->unique()
-                ->toArray();
-        }
-
-        if (!empty($quoteOrdinarie) && $paganteId) {
-
-            $eventiDaAggiornare = Evento::where('meta->type', 'scadenza_rata_condomino')
-                ->where(function ($q) use ($rataIdsReali) {
-                    foreach ($rataIdsReali as $rId) {
-                        $q->orWhere('meta->context->rata_id', (int)$rId)
-                          ->orWhere('meta->context->rata_id', (string)$rId);
-                    }
-                })
-                ->whereHas('anagrafiche', fn($q) => $q->where('anagrafica_id', $paganteId))
-                ->get();
-
-            foreach ($eventiDaAggiornare as $evento) {
-                
-                $rataId = $evento->meta['context']['rata_id'] ?? null;
-                $rataFresca = Rata::with('rateQuote')->find($rataId);
-                
-                if ($rataFresca) {
-                    // Escludiamo le quote saldo_iniziale negative (crediti) dal calcolo
-                    $quoteUtente = $rataFresca->rateQuote
-                        ->where('anagrafica_id', $paganteId)
-                        ->where('importo', '>', 0);
-                    
-                    $totaleDovuto = $quoteUtente->sum('importo');
-                    $totalePagato = $quoteUtente->sum('importo_pagato');
-                    $restante = $totaleDovuto - $totalePagato;
-
-                    $meta = $evento->meta;
-                    $meta['importo_pagato'] = $totalePagato;
-                    $meta['importo_restante'] = max(0, $restante);
-
-                    if ($restante <= 0.01) {
-                        $meta['status'] = 'paid';
-                    } elseif ($totalePagato > 0.01) {
-                        $meta['status'] = 'partial';
-                    } else {
-                        $meta['status'] = 'pending';
-                    }
-
-                    $evento->update(['meta' => $meta]);
-                }
-            }
-        }
-
-        // Chiusura del Task Admin
-        $relatedTaskId = $request->input('related_task_id');
-
-        if ($relatedTaskId) {
-            /** @var \App\Models\Evento|null $task */
-            $task = Evento::find($relatedTaskId);
-
-            if ($task && !$task->is_completed) {
-                $task->update([
-                    'is_completed' => true,
-                    'completed_at' => now(),
-                ]);
-            }
-        }
-
-        // -------------------------------------------------------------
-        // 2. SMART TASK KILLER: Uccisione Globale (Verifica incassi rata)
-        // -------------------------------------------------------------
-        if (!empty($quoteOrdinarie)) {
-            // Prendiamo le rate padri coinvolte in questo pagamento
-            $ratePadri = Rata::whereIn('id', $rataIdsReali)->with('rateQuote')->get();
-
-            foreach ($ratePadri as $rataPadre) {
-                // Calcoliamo quanto è stato pagato in totale per QUESTA rata in TUTTO il condominio
-                $totaleDovutoCondominio = $rataPadre->rateQuote->where('importo', '>', 0)->sum('importo');
-                $totalePagatoCondominio = $rataPadre->rateQuote->where('importo', '>', 0)->sum('importo_pagato');
-                
-                $residuoCondominio = $totaleDovutoCondominio - $totalePagatoCondominio;
-
-                // Se l'intera rata del condominio è stata saldata (tolleranza 1 centesimo)
-                if ($residuoCondominio <= 0.01) {
-                    
-                    // Cerchiamo l'evento globale "Verifica incassi" per questa rata
-                    $rataPadreId = (int) $rataPadre->id;
-                    
-                    Evento::where('meta->type', 'controllo_incassi')
-                        ->where(function($q) use ($rataPadreId) {
-                            $q->where('meta->context->rata_id', $rataPadreId)
-                              ->orWhere('meta->context->rata_id', (string) $rataPadreId);
-                        })
-                        ->where('is_completed', false)
-                        ->update([
-                            'is_completed' => true,
-                            'completed_at' => now(),
-                        ]);
-                }
-            }
-        }
-
-        // Svuotiamo la cache della inbox dell'admin una sola volta alla fine
-        InboxService::clearAdminCache();
+        // Scadenziario, task admin e cache della inbox: stessa sequenza dell'abbinamento
+        // bancario, che registra incassi con la stessa Action (vedi SincronizzaScadenziarioIncasso).
+        app(SincronizzaScadenziarioIncasso::class)->dopoIncasso(
+            $request->input('pagante_id'),
+            $request->input('dettaglio_pagamenti', []),
+            $request->input('related_task_id'),
+        );
 
         return to_route('admin.gestionale.movimenti-rate.index', $condominio)
             ->with($this->flashSuccess('Incasso registrato con successo.'));
