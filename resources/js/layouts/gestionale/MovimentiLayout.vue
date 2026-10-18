@@ -4,7 +4,7 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { Button } from '@/components/ui/button';
 import NavSezione from '@/components/NavSezione.vue';
 import { usePermission } from "@/composables/permissions";
-import { LogIn, LogOut, Wallet, Repeat2, FileText, BookOpen, Percent } from 'lucide-vue-next';
+import { LogIn, LogOut, Wallet, Repeat2, FileText, BookOpen, Percent, FileCheck2 } from 'lucide-vue-next';
 import type { LinkItem } from '@/types';
 import type { Building } from '@/types/buildings';
 import type { Esercizio } from '@/types/gestionale/esercizi';
@@ -44,6 +44,12 @@ const topbarNavItems: (LinkItem & { badge?: string })[] = [
         icon:  Percent,
         title: 'Ritenute e F24',
         href:  generatePath('gestionale/:condominio/f24', { condominio: condominio.value.id }),
+    },
+    {
+        type:  'link',
+        icon:  FileCheck2,
+        title: 'CU e 770',
+        href:  generatePath('gestionale/:condominio/fiscale/cu-770', { condominio: condominio.value.id }),
     },
     {
         type:  'link',

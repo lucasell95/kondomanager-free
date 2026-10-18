@@ -94,6 +94,78 @@ return [
         ],
     ],
 
+    // ── Certificazione Unica e 770 (area fiscale, 2026-10) ─────────────────────────────────
+    //
+    // ⚠️ Le istruzioni AdE della CU e del 770 non erano raggiungibili da dove questo codice è
+    // stato scritto (agenziaentrate.gov.it bloccato). Ciò che segue viene da fonti secondarie
+    // concordi (Fiscomania, EC News 2022 e 2025, Money.it 2026): ogni voce marcata
+    // `da_verificare` va controllata sulle istruzioni dell'anno prima dell'uso.
+    'certificazione_unica' => [
+        // Codici del punto 6 «somme non soggette» della sezione lavoro autonomo, per la natura
+        // della riga fattura che non concorre alla base della ritenuta.
+        'codici_somme_non_soggette' => [
+            // Somme che non costituiscono reddito per il percipiente: spese anticipate in nome
+            // e per conto del committente (art. 15 DPR 633/1972).
+            'rimborso_art15' => '22',
+            'rimborso_pie_lista' => '22',
+            // Altri redditi non soggetti a ritenuta per ragioni diverse dall'esenzione (anche
+            // la quota non imponibile delle provvigioni).
+            'bollo_riaddebitato' => '21',
+            'fornitura_con_posa' => '21',
+            'altro' => '21',
+            'provvigioni_quota_esclusa' => '21',
+        ],
+        'descrizioni_codici' => [
+            '21' => 'Altri redditi non soggetti a ritenuta',
+            '22' => 'Somme che non costituiscono reddito (es. spese anticipate art. 15 DPR 633/1972)',
+            '24' => 'Compensi a soggetti in regime forfetario (solo casi residui, es. sanitari)',
+        ],
+        'da_verificare' => [
+            'codici_somme_non_soggette',
+            // Dal periodo d'imposta 2024 i compensi ai forfetari e ai minimi non vanno certificati
+            // (art. 4 c. 6-septies DPR 322/1998, introdotto dall'art. 3 D.Lgs. 1/2024), salvo i
+            // casi senza fattura elettronica (es. prestazioni sanitarie, codice 24).
+            'esonero_forfetari',
+        ],
+        // Causali del punto 1.
+        'causali' => [
+            'W' => "Corrispettivi erogati per prestazioni relative a contratti d'appalto (es. condominio) ex art. 25-ter DPR 600/1973",
+            'A' => 'Prestazioni di lavoro autonomo rientranti nell\'esercizio di arte o professione abituale',
+        ],
+    ],
+
+    // Codici carica del firmatario (frontespizio CU e 770). [DA VERIFICARE] sulla tabella delle
+    // istruzioni dell'anno: 13 per l'amministratore di condominio, 1 per il rappresentante legale,
+    // negoziale o di fatto.
+    'codici_carica' => [
+        '13' => 'Amministratore di condominio',
+        '1' => 'Rappresentante legale, negoziale o di fatto',
+    ],
+
+    // Stima del ravvedimento operoso per le ritenute versate in ritardo (art. 13 D.Lgs. 471/1997
+    // e art. 13 D.Lgs. 472/1997, come modificati dal D.Lgs. 87/2024 per le violazioni dal
+    // 01/09/2024). ⚠️ [DA VERIFICARE]: le percentuali vengono da tabelle pubblicate da fonti non
+    // ufficiali; il programma le usa solo per una STIMA mostrata come tale, mai per versare.
+    'ravvedimento' => [
+        'da_verificare' => true,
+        // Sanzione piena per omesso/tardivo versamento e sua riduzione entro 90 giorni.
+        'sanzione_piena' => 25.0,
+        'sanzione_entro_90_giorni' => 12.5,
+        // Fasce del ravvedimento: giorni di ritardo massimi => percentuale della ritenuta.
+        // `per_giorno` = percentuale per ogni giorno di ritardo (ravvedimento «sprint»).
+        'fasce' => [
+            ['fino_a_giorni' => 14, 'per_giorno' => 0.0833],
+            ['fino_a_giorni' => 30, 'percentuale' => 1.25],
+            ['fino_a_giorni' => 90, 'percentuale' => 1.389],
+            ['fino_a_giorni' => 365, 'percentuale' => 3.125],
+            ['fino_a_giorni' => null, 'percentuale' => 3.571],
+        ],
+        // Codice della sanzione suggerito per le ritenute su appalti e lavoro autonomo
+        // (ris. 18/E/2023: 8948 per lavoro autonomo, provvigioni e redditi diversi). Per il 4%
+        // sugli appalti l'abbinamento non è nella risoluzione: [INCERTO].
+        'codice_sanzione_suggerito' => '8948',
+    ],
+
     'festivita_nazionali' => [
         '01-01', '01-06', '04-25', '05-01', '06-02', '08-15', '11-01', '12-08', '12-25', '12-26',
     ],
