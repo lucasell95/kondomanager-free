@@ -105,6 +105,8 @@ docker run -d --name kondo_db --restart unless-stopped --network kondo_int -m "$
 fi
 if [ "$AZIONE" = "risorse" ]; then
   for i in $(seq 1 30); do docker exec kondo_db mariadb-admin -uroot -p"$ROOT_PASS" ping >/dev/null 2>&1 && break; sleep 2; done
+  # cgroup v1 (DSM 7.1): prima si alza il limite memoria+swap, poi quello della memoria
+  docker update --memory-swap -1 kondo_app >/dev/null
   docker update -m "$APP_MEM" --memory-swap -1 kondo_app
   echo "--- stato"; docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' kondo_db kondo_app
   echo "===== $(date '+%F %T') fine install.sh (risorse) OK"; exit 0
