@@ -18,7 +18,7 @@ LAN_IF="eth0"; LAN_SUBNET=""; LAN_GATEWAY=""
 WATCHTOWER_INTERVAL=300
 # Risorse (valori prudenti per NAS da 2 GB; con più RAM si alzano in nas.conf)
 DB_MEM="320m"; DB_BUFFER_POOL="64M"; DB_MAX_CONN=30; DB_TMP_TABLE="16M"
-APP_MEM="700m"
+APP_MEM="700m"; APP_SWAP="4g"   # APP_SWAP = memoria + swap, usato solo dall'azione «risorse»
 # Modalità sviluppo: se DEV_CODE_DIR è valorizzato (es. "codice"), il codice dell'app viene montato da
 # quella cartella e le modifiche caricate si vedono subito (niente cache, niente Watchtower).
 DEV_CODE_DIR=""
@@ -106,8 +106,8 @@ fi
 if [ "$AZIONE" = "risorse" ]; then
   for i in $(seq 1 30); do docker exec kondo_db mariadb-admin -uroot -p"$ROOT_PASS" ping >/dev/null 2>&1 && break; sleep 2; done
   # cgroup v1 (DSM 7.1): prima si alza il limite memoria+swap, poi quello della memoria
-  docker update --memory-swap -1 kondo_app >/dev/null
-  docker update -m "$APP_MEM" --memory-swap -1 kondo_app
+  docker update --memory-swap "$APP_SWAP" kondo_app >/dev/null
+  docker update -m "$APP_MEM" --memory-swap "$APP_SWAP" kondo_app
   echo "--- stato"; docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' kondo_db kondo_app
   echo "===== $(date '+%F %T') fine install.sh (risorse) OK"; exit 0
 fi
