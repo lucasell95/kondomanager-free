@@ -10,3 +10,6 @@ WATCHTOWER_INTERVAL=300
 # Modalità sviluppo (facoltativa): codice montato da questa cartella, modifiche visibili subito.
 # Caricare codice.tar.gz accanto a install.sh; lasciare vuoto per la modalità normale con Watchtower.
 DEV_CODE_DIR=""
+# Risorse: valori per NAS con 8+ GB di RAM (lasciare commentato con 2 GB)
+# DB_MEM="1g"; DB_BUFFER_POOL="512M"; DB_MAX_CONN=50; DB_TMP_TABLE="64M"
+# APP_MEM="1536m"

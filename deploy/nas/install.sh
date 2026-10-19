@@ -16,6 +16,9 @@ IMAGE="ghcr.io/OWNER/kondomanager-nas:latest"
 APP_IP=""; APP_MAC=""; APP_HOSTNAME="condominio"; APP_URL=""
 LAN_IF="eth0"; LAN_SUBNET=""; LAN_GATEWAY=""
 WATCHTOWER_INTERVAL=300
+# Risorse (valori prudenti per NAS da 2 GB; con più RAM si alzano in nas.conf)
+DB_MEM="320m"; DB_BUFFER_POOL="64M"; DB_MAX_CONN=30; DB_TMP_TABLE="16M"
+APP_MEM="700m"
 # Modalità sviluppo: se DEV_CODE_DIR è valorizzato (es. "codice"), il codice dell'app viene montato da
 # quella cartella e le modifiche caricate si vedono subito (niente cache, niente Watchtower).
 DEV_CODE_DIR=""
@@ -76,18 +79,24 @@ docker network inspect kondo_int >/dev/null 2>&1 || docker network create kondo_
 docker network inspect kondo_lan >/dev/null 2>&1 || docker network create -d macvlan \
   --subnet="$LAN_SUBNET" --gateway="$LAN_GATEWAY" --ip-range="${APP_IP}/32" -o parent="$LAN_IF" kondo_lan
 
-# --- Database (ricreato solo se non esiste) ---
+# --- Database: ricreato solo se manca o se cambiano i parametri (i dati restano in data/db) ---
+DB_ARGS="--innodb-buffer-pool-size=$DB_BUFFER_POOL --innodb-log-buffer-size=8M --performance-schema=OFF \
+  --max-connections=$DB_MAX_CONN --key-buffer-size=8M --tmp-table-size=$DB_TMP_TABLE --max-heap-table-size=$DB_TMP_TABLE \
+  --table-open-cache=400 --skip-name-resolve \
+  --innodb-flush-log-at-trx-commit=2 --innodb-flush-method=O_DIRECT \
+  --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci"
+DB_CFG="$(echo "$DB_MEM $DB_ARGS" | md5sum | cut -c1-12)"
+if docker container inspect kondo_db >/dev/null 2>&1; then
+  [ "$(docker inspect -f '{{ index .Config.Labels "kondo.cfg" }}' kondo_db 2>/dev/null)" = "$DB_CFG" ] || { echo "--- parametri DB cambiati: ricreo kondo_db"; docker rm -f kondo_db >/dev/null; }
+fi
 if ! docker container inspect kondo_db >/dev/null 2>&1; then
-docker run -d --name kondo_db --restart unless-stopped --network kondo_int -m 320m \
+# shellcheck disable=SC2086
+docker run -d --name kondo_db --restart unless-stopped --network kondo_int -m "$DB_MEM" \
+  --label kondo.cfg="$DB_CFG" \
   -v "$BASE/data/db:/var/lib/mysql" \
   -e TZ=Europe/Rome -e MARIADB_DATABASE=kondomanager -e MARIADB_USER=kondo \
   -e MARIADB_PASSWORD="$DB_PASS" -e MARIADB_ROOT_PASSWORD="$ROOT_PASS" \
-  mariadb:10.11 \
-  --innodb-buffer-pool-size=64M --innodb-log-buffer-size=8M --performance-schema=OFF \
-  --max-connections=30 --key-buffer-size=8M --tmp-table-size=16M --max-heap-table-size=16M \
-  --table-open-cache=400 --skip-name-resolve \
-  --innodb-flush-log-at-trx-commit=2 --innodb-flush-method=O_DIRECT \
-  --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+  mariadb:10.11 $DB_ARGS
 fi
 
 # --- Applicazione ---
@@ -100,7 +109,7 @@ if [ -n "$DEV_CODE_DIR" ]; then
   for d in $DEV_MOUNTS; do [ -d "$DEV_CODE_DIR/$d" ] && DEVOPT="$DEVOPT -v $BASE/$DEV_CODE_DIR/$d:/var/www/$d:ro"; done
   echo "--- modalità sviluppo: $DEVOPT"
 fi
-docker run -d --name kondo_app --restart unless-stopped -m 700m \
+docker run -d --name kondo_app --restart unless-stopped -m "$APP_MEM" \
   $WTLABEL $DEVOPT \
   --network kondo_lan --ip "$APP_IP" $MACOPT --hostname "$APP_HOSTNAME" \
   -e APP_URL="$APP_URL" -e DB_HOST=kondo_db -e DB_DATABASE=kondomanager \
