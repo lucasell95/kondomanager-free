@@ -27,7 +27,8 @@ DEV_MOUNTS="app config database lang resources routes public/build"
 : "${APP_IP:?imposta APP_IP in nas.conf}" "${LAN_SUBNET:?imposta LAN_SUBNET}" "${LAN_GATEWAY:?imposta LAN_GATEWAY}"
 APP_URL="${APP_URL:-http://$APP_HOSTNAME}"
 
-# --- Azione richiesta (file "azione" accanto allo script, letto una volta): install (default) | codice | dump
+# --- Azione richiesta (file "azione" accanto allo script, letto una volta): install (default) | codice | dump | risorse
+#     risorse = copia del database, poi applica i limiti di memoria di nas.conf senza cambiare l'immagine dell'app
 AZIONE=install
 if [ -f azione ]; then AZIONE="$(tr -d ' \r\n' < azione)"; rm -f azione; fi
 echo "--- azione: $AZIONE"
@@ -62,16 +63,20 @@ fi
 mkdir -p data/db data/storage data/config
 
 # Azione "dump": copia del database in dump/kondomanager.sql (per backup o per un'istanza di sviluppo)
-if [ "$AZIONE" = "dump" ]; then
+copia_db() {
   mkdir -p dump
   docker exec kondo_db mariadb-dump -uroot -p"$ROOT_PASS" --single-transaction --routines --triggers \
     --databases kondomanager > dump/kondomanager.sql
   gzip -f dump/kondomanager.sql
-  ls -l dump; echo "===== $(date '+%F %T') fine install.sh (dump) OK"; exit 0
+  ls -l dump
+}
+if [ "$AZIONE" = "dump" ]; then
+  copia_db; echo "===== $(date '+%F %T') fine install.sh (dump) OK"; exit 0
 fi
+[ "$AZIONE" = "risorse" ] && copia_db
 
 # --- Immagini ---
-docker pull "$IMAGE"
+[ "$AZIONE" = "risorse" ] || docker pull "$IMAGE"
 docker image inspect mariadb:10.11 >/dev/null 2>&1 || docker pull mariadb:10.11
 
 # --- Reti: interna (app<->db) e macvlan (IP dedicato in LAN) ---
@@ -97,6 +102,12 @@ docker run -d --name kondo_db --restart unless-stopped --network kondo_int -m "$
   -e TZ=Europe/Rome -e MARIADB_DATABASE=kondomanager -e MARIADB_USER=kondo \
   -e MARIADB_PASSWORD="$DB_PASS" -e MARIADB_ROOT_PASSWORD="$ROOT_PASS" \
   mariadb:10.11 $DB_ARGS
+fi
+if [ "$AZIONE" = "risorse" ]; then
+  for i in $(seq 1 30); do docker exec kondo_db mariadb-admin -uroot -p"$ROOT_PASS" ping >/dev/null 2>&1 && break; sleep 2; done
+  docker update -m "$APP_MEM" --memory-swap -1 kondo_app
+  echo "--- stato"; docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' kondo_db kondo_app
+  echo "===== $(date '+%F %T') fine install.sh (risorse) OK"; exit 0
 fi
 
 # --- Applicazione ---
